@@ -1,10 +1,10 @@
-# Viper Thermal Suite v9.2
+# Viper Thermal Suite v9.3
 # Author: Gemini
 # Description: The successor to the Cobra series, a branded thermal analysis tool for the Sercomm Team.
 # Version Notes: 
-# - Integrated Solar Radiation analysis directly into the Natural Convection tab via a toggle switch.
-# - The primary result now shows "Max. Internal Dissipatable Power" when solar load is included.
-# - Added a "Thermal Budget Breakdown" to clarify results.
+# - Added a user input for "Solar Irradiance" which appears when the solar effects toggle is on.
+# - Refined the layout to group all solar-related inputs cleanly.
+# - Ensured all UI elements are in English.
 
 import streamlit as st
 import pandas as pd
@@ -22,7 +22,6 @@ BUILT_IN_SAFETY_FACTOR = 0.9 # Fixed safety factor for natural convection
 AIR_DENSITY_RHO = 1.225 # kg/m^3
 AIR_SPECIFIC_HEAT_CP = 1006 # J/kg°C
 M3S_TO_CFM_CONVERSION = 2118.88 # m^3/s to CFM
-SOLAR_IRRADIANCE = 1000 # Standard solar irradiance in W/m^2
 
 # --- Calculation Engines ---
 
@@ -78,17 +77,16 @@ def calculate_forced_convection(power_q, T_in, T_out):
     volume_flow_rate_cfm = volume_flow_rate_m3s * M3S_TO_CFM_CONVERSION # CFM
     return {"cfm": volume_flow_rate_cfm, "error": None}
 
-def calculate_solar_gain(L, W, H, solar_props):
+def calculate_solar_gain(L, W, solar_props, solar_irradiance):
     """Calculates the absorbed solar heat based on Q = α * A_proj * G."""
-    if L <= 0 or W <= 0 or H <= 0: return {"error": "Product dimensions must be greater than zero."}
+    if L <= 0 or W <= 0: return {"error": "Product Length and Width must be greater than zero."}
     try:
         alpha = solar_props["absorptivity"]
-        # Assuming sun is directly overhead, projected area is LxW.
-        # A more complex model could consider side-facing sun.
         projected_area = (L / 1000) * (W / 1000) # m^2
-        solar_gain = alpha * projected_area * SOLAR_IRRADIANCE
+        solar_gain = alpha * projected_area * solar_irradiance
         return {"solar_gain": solar_gain, "projected_area": projected_area, "alpha": alpha, "error": None}
     except Exception as e: return { "error": f"An unexpected error occurred during calculation: {e}" }
+
 
 # --- Main Application UI ---
 st.set_page_config(page_title="Viper Thermal Suite", layout="wide")
@@ -110,7 +108,7 @@ st.markdown(
         <div style="margin-right: 15px;">{viper_logo_svg}</div>
         <div>
             <h1 style="margin-bottom: 0; color: #FFFFFF;">Viper Thermal Suite</h1>
-            <p style="margin-top: 0; color: #AAAAAA;">A Thermal Assessment Tool for the Sercomm Thermal Team</p>
+            <p style="margin-top: 0; color: #AAAAAA;">A Thermal Assessment Tool that continues the Cobra series.</p>
         </div>
     </div>
     """,
@@ -155,8 +153,14 @@ with tab_nat:
         st.divider()
         include_solar = st.toggle("Include Solar Radiation Effects?")
         solar_color = ""
+        solar_irradiance_val = 1000 # Default value
         if include_solar:
-            solar_color = st.selectbox("Enclosure Color/Finish", options=list(solar_absorptivity_materials.keys()), key="solar_mat")
+            st.markdown("##### Solar Load Parameters")
+            solar_col1, solar_col2 = st.columns(2)
+            with solar_col1:
+                solar_color = st.selectbox("Enclosure Color/Finish", options=list(solar_absorptivity_materials.keys()), key="solar_mat")
+            with solar_col2:
+                solar_irradiance_val = st.number_input("Solar Irradiance (G, W/m²)", min_value=0, value=1000, step=50)
 
     with col_nat_result:
         st.subheader("Evaluation Result")
@@ -166,7 +170,7 @@ with tab_nat:
         solar_gain = 0
         if include_solar and solar_color:
             selected_solar_props = solar_absorptivity_materials[solar_color]
-            solar_results = calculate_solar_gain(nc_dim_L, nc_dim_W, nc_dim_H, selected_solar_props)
+            solar_results = calculate_solar_gain(nc_dim_L, nc_dim_W, selected_solar_props, solar_irradiance_val)
             if not solar_results.get("error"):
                 solar_gain = solar_results["solar_gain"]
 
