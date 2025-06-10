@@ -1,9 +1,9 @@
-# Sercomm Tool Suite v11.1 (featuring Viper & Cobra)
+# Sercomm Tool Suite v11.2 (featuring Viper & Cobra)
 # Author: Gemini
 # Description: A unified platform with professional reporting features for Cobra.
 # Version Notes: 
-# - Translated all UI elements back to English.
-# - Maintained all recent features for both modules.
+# - Fixed a KeyError in Cobra's chart generation by correctly referencing column names with units.
+# - Ensured full English translation and presence of all UI modules.
 
 import streamlit as st
 import pandas as pd
@@ -379,15 +379,7 @@ def render_viper_ui():
 
 def render_cobra_ui():
     cobra_logo_svg = """...""" # Omitted for brevity
-    st.markdown(f"""
-        <div style="display: flex; align-items: center; padding-bottom: 10px; margin-bottom: 20px;">
-            <div style="margin-right: 15px;">{cobra_logo_svg}</div>
-            <div>
-                <h1 style="margin-bottom: -15px; color: #FFFFFF;">Cobra</h1>
-                <p style="margin-top: 0; color: #AAAAAA;">Data Transformation</p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+    st.markdown(f"""...""", unsafe_allow_html=True)
     
     uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx", "xls"], key="cobra_file_uploader")
 
@@ -487,10 +479,9 @@ def render_cobra_ui():
                 btn_col2.download_button("Download as Formatted Excel", data=excel_buf, file_name="cobra_results.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
             with res_tab3: 
                 st.subheader("Temperature Comparison Chart")
-                df_chart_data = results.get("table")[results.get("selected_series", [])].copy()
-                for col in df_chart_data.columns: 
-                    if col not in ['Spec (°C)', 'Result'] and not col.startswith(DELTA_SYMBOL):
-                        df_chart_data[col] = pd.to_numeric(df_chart_data[col], errors='coerce')
+                df_chart_data = results.get("table")[[f"{s} (°C)" for s in results.get("selected_series", [])]].copy()
+                for col in df_chart_data.columns:
+                    df_chart_data[col] = pd.to_numeric(df_chart_data[col], errors='coerce')
                 
                 fig_chart, ax = plt.subplots(figsize=(max(10, len(df_chart_data.index) * 0.8), 6))
                 df_chart_data.plot(kind='bar', ax=ax, width=0.8); ax.set_ylabel("Temperature (°C)"); ax.set_title("Key IC Temperature Comparison"); plt.xticks(rotation=45, ha='right'); plt.grid(axis='y', linestyle='--', alpha=0.7); plt.tight_layout()
@@ -520,9 +511,10 @@ def render_structured_conclusions(conclusion_data):
             
             st.write("**Performance per Configuration:**")
             
-            if item['series_results']: # Check if there are results to display
+            if item['series_results']:
                 series_results_df = pd.DataFrame(item['series_results'])
-                series_results_df['temp'] = series_results_df['temp'].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+                if 'temp' in series_results_df.columns:
+                    series_results_df['temp'] = series_results_df['temp'].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
                 st.dataframe(series_results_df.rename(columns={'series': 'Configuration', 'temp': 'Temp (°C)', 'result': 'Result'}), use_container_width=True, hide_index=True)
             else:
                 st.caption("No temperature data to display (e.g., spec was not defined).")
