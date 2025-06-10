@@ -1,6 +1,6 @@
-# Sercomm Thermal Suite v6.1
+# Viper Thermal Suite v7.1
 # Author: Gemini
-# Description: A branded, integrated thermal analysis suite for the Sercomm Thermal Team.
+# Description: The successor to the Cobra series, a branded thermal analysis tool for the Sercomm Team.
 # Version Notes: 
 # - Translated all UI elements to English for international team use.
 
@@ -80,26 +80,27 @@ def calculate_forced_convection(power_q, T_in, T_out):
     return {"cfm": volume_flow_rate_cfm, "error": None}
 
 # --- Main Application UI ---
-st.set_page_config(page_title="Sercomm Thermal Suite", layout="wide")
+st.set_page_config(page_title="Viper Thermal Suite", layout="wide")
 
-# --- Custom Sercomm Logo and Title ---
-sercomm_logo_svg = """
-<svg width="60" height="50" viewBox="0 0 70 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M50.3125 15.625C47.4375 13.0625 43.75 11.25 39.6875 10.3125" stroke="#00529B" stroke-width="4" stroke-linecap="round"/>
-  <path d="M58.4375 7.5C53.5625 5.1875 47.9375 3.75 42.1875 3.125" stroke="#00529B" stroke-width="4" stroke-linecap="round"/>
-  <path d="M10,45 C15,35 25,35 30,45" stroke="#FF5733" stroke-width="3" stroke-linecap="round" fill="none"/>
-  <path d="M30,45 C35,35 45,35 50,45" stroke="#FF5733" stroke-width="3" stroke-linecap="round" fill="none"/>
-  <path d="M50,45 C55,35 65,35 70,45" stroke="#FF5733" stroke-width="3" stroke-linecap="round" fill="none"/>
+# --- Custom Viper Logo and Title ---
+viper_logo_svg = """
+<svg width="50" height="50" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M50 10 L85 45 L50 90 L15 45 Z" fill="#1E1E1E" stroke="#FF5733" stroke-width="4"/>
+  <path d="M50 25 C 40 35, 40 55, 50 65" stroke="#FFC300" stroke-width="5" stroke-linecap="round" fill="none"/>
+  <path d="M50 25 C 60 35, 60 55, 50 65" stroke="#FFC300" stroke-width="5" stroke-linecap="round" fill="none"/>
+  <path d="M42 45 L58 45" stroke="#FFC300" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="40" cy="35" r="4" fill="#FFFFFF"/>
+  <circle cx="60" cy="35" r="4" fill="#FFFFFF"/>
 </svg>
 """
 
 st.markdown(
     f"""
-    <div style="display: flex; align-items: center;">
-        <div style="margin-right: 15px;">{sercomm_logo_svg}</div>
+    <div style="display: flex; align-items: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px;">
+        <div style="margin-right: 15px;">{viper_logo_svg}</div>
         <div>
-            <h1 style="margin-bottom: 0;">Sercomm Thermal Suite</h1>
-            <p style="margin-top: 0; color: #888;">A Thermal Assessment Tool for the Sercomm Thermal Team</p>
+            <h1 style="margin-bottom: 0; color: #FFFFFF;">Viper Thermal Suite</h1>
+            <p style="margin-top: 0; color: #AAAAAA;">The thermal risk assessment tool that continues the Cobra series.</p>
         </div>
     </div>
     """,
@@ -145,7 +146,7 @@ with tab_nat:
             st.error(f"**Error:** {nc_results['error']}")
         else:
             st.metric(label="✅ Max. Dissipatable Power", value=f"{nc_results['total_power']:.2f} W")
-            st.info("This result incorporates the material's temperature uniformity and a fixed engineering safety factor (0.9).")
+            st.info("This result includes built-in material uniformity and a fixed engineering safety factor (0.9).")
             
             with st.expander("Show Detailed Analysis"):
                 st.markdown(f"""
@@ -192,4 +193,3 @@ with tab_force:
                 help="CFM: Cubic Feet per Minute. This is the minimum airflow required to dissipate the specified power under the given temperature constraints."
             )
             st.info("This calculation assumes standard air density (1.225 kg/m³) and specific heat (1006 J/kg°C).")
-
