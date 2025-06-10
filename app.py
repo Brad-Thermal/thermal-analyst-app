@@ -1,9 +1,8 @@
-# Sercomm Tool Suite v4.0 (featuring Viper & Cobra)
+# Sercomm Tool Suite v4.1 (featuring Viper & Cobra)
 # Author: Gemini
 # Description: A unified platform integrating the Viper Thermal Suite and the Cobra Thermal Analyzer.
 # Version Notes: 
-# - BUG FIX: Restored the complete UI code for the Viper Thermal Suite module.
-# - Reverted Viper UI to Traditional Chinese.
+# - Translated all UI elements to English for both Viper and Cobra modules.
 
 import streamlit as st
 import pandas as pd
@@ -43,8 +42,8 @@ DELTA_SYMBOL = "\u0394"
 # --- ======================================================================= ---
 
 def calculate_natural_convection(L, W, H, Ts_peak, Ta, material_props):
-    if Ts_peak <= Ta: return { "error": "外殼允許溫度 (Ts) 必須高於環境溫度 (Ta)。" }
-    if L <= 0 or W <= 0 or H <= 0: return { "error": "產品的長、寬、高尺寸必須大於零。" }
+    if Ts_peak <= Ta: return { "error": "Max. Allowable Surface Temp (Ts) must be higher than Ambient Temp (Ta)." }
+    if L <= 0 or W <= 0 or H <= 0: return { "error": "Product dimensions (L, W, H) must be greater than zero." }
     try:
         epsilon, k_uniform = material_props["emissivity"], material_props["k_uniform"]
         Ts_eff = Ta + (Ts_peak - Ta) * k_uniform
@@ -68,22 +67,22 @@ def calculate_natural_convection(L, W, H, Ts_peak, Ta, material_props):
         Q_ideal_total = Q_conv_total + Q_rad
         Q_final = Q_ideal_total * BUILT_IN_SAFETY_FACTOR
         return {"total_power": Q_final, "error": None}
-    except Exception as e: return {"error": f"計算過程中發生未預期的錯誤: {e}"}
+    except Exception as e: return {"error": f"An unexpected error occurred during calculation: {e}"}
 
 def calculate_forced_convection(power_q, T_in, T_out):
-    if T_out <= T_in: return {"error": "出風口溫度必須高於進風口溫度。"}
-    if power_q <= 0: return {"error": "需散熱的功耗必須大於零。"}
+    if T_out <= T_in: return {"error": "Outlet Temperature must be higher than Inlet Temperature."}
+    if power_q <= 0: return {"error": "Power to be dissipated must be greater than zero."}
     delta_T = T_out - T_in
     mass_flow_rate = power_q / (AIR_SPECIFIC_HEAT_CP * delta_T)
     volume_flow_rate_m3s = mass_flow_rate / AIR_DENSITY_RHO
     return {"cfm": volume_flow_rate_m3s * M3S_TO_CFM_CONVERSION, "error": None}
 
 def calculate_solar_gain(projected_area_mm2, alpha, solar_irradiance):
-    if projected_area_mm2 <= 0: return {"error": "曝曬投影面積必須大於零。"}
+    if projected_area_mm2 <= 0: return {"error": "Projected Surface Area must be greater than zero."}
     try:
         projected_area_m2 = projected_area_mm2 / 1_000_000
         return {"solar_gain": alpha * projected_area_m2 * solar_irradiance, "error": None}
-    except Exception as e: return {"error": f"計算過程中發生未預期的錯誤: {e}"}
+    except Exception as e: return {"error": f"An unexpected error occurred during calculation: {e}"}
 
 # --- ======================================================================= ---
 # ---                     COBRA DATA PROCESSING LOGIC                         ---
@@ -238,84 +237,84 @@ def render_viper_ui():
             <div style="margin-right: 15px;">{viper_logo_svg}</div>
             <div>
                 <h1 style="margin-bottom: 0; color: #FFFFFF;">Viper Thermal Suite</h1>
-                <p style="margin-top: 0; color: #AAAAAA;">延續 Cobra 系列的熱風險評估工具</p>
+                <p style="margin-top: 0; color: #AAAAAA;">A Thermal Assessment Tool that continues the Cobra series.</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
     natural_convection_materials = {
-        "塑膠 (ABS/PC)": {"emissivity": 0.90, "k_uniform": 0.65},
-        "鋁合金 (陽極處理)": {"emissivity": 0.85, "k_uniform": 0.90}
+        "Plastic (ABS/PC)": {"emissivity": 0.90, "k_uniform": 0.65},
+        "Aluminum (Anodized)": {"emissivity": 0.85, "k_uniform": 0.90}
     }
     solar_absorptivity_materials = {
-        "白色 (White Paint)": {"absorptivity": 0.25},
-        "銀色 (Silver Paint)": {"absorptivity": 0.40},
-        "深灰色 (Dark Gray)": {"absorptivity": 0.80},
-        "黑色 (Black Plastic/Paint)": {"absorptivity": 0.95}
+        "White (Paint)": {"absorptivity": 0.25},
+        "Silver (Paint)": {"absorptivity": 0.40},
+        "Dark Gray": {"absorptivity": 0.80},
+        "Black (Plastic/Paint)": {"absorptivity": 0.95}
     }
 
-    tab_nat, tab_force, tab_solar = st.tabs(["🍃 自然對流分析", "🌬️ 強制對流分析", "☀️ 太陽輻射分析"])
+    tab_nat, tab_force, tab_solar = st.tabs(["🍃 Natural Convection", "🌬️ Forced Convection", "☀️ Solar Radiation"])
     
     with tab_nat:
-        st.header("被動散熱功耗估算")
+        st.header("Passive Cooling Power Estimator")
         col_nat_input, col_nat_result = st.columns(2, gap="large")
         with col_nat_input:
-            st.subheader("輸入參數")
-            nc_material_name = st.selectbox("外殼材質", options=list(natural_convection_materials.keys()), key="nc_mat")
-            st.markdown("**產品尺寸 (mm)**")
+            st.subheader("Input Parameters")
+            nc_material_name = st.selectbox("Enclosure Material", options=list(natural_convection_materials.keys()), key="nc_mat")
+            st.markdown("**Product Dimensions (mm)**")
             dim_col1, dim_col2, dim_col3 = st.columns(3)
-            with dim_col1: nc_dim_L = st.number_input("長度 (L)", 1.0, 1000.0, 200.0, 10.0, "%.1f", key="nc_l")
-            with dim_col2: nc_dim_W = st.number_input("寬度 (W)", 1.0, 1000.0, 150.0, 10.0, "%.1f", key="nc_w")
-            with dim_col3: nc_dim_H = st.number_input("高度 (H)", 1.0, 500.0, 50.0, 5.0, "%.1f", key="nc_h")
-            st.markdown("**運作條件 (°C)**")
+            with dim_col1: nc_dim_L = st.number_input("Length (L)", 1.0, 1000.0, 200.0, 10.0, "%.1f", key="nc_l")
+            with dim_col2: nc_dim_W = st.number_input("Width (W)", 1.0, 1000.0, 150.0, 10.0, "%.1f", key="nc_w")
+            with dim_col3: nc_dim_H = st.number_input("Height (H)", 1.0, 500.0, 50.0, 5.0, "%.1f", key="nc_h")
+            st.markdown("**Operating Conditions (°C)**")
             op_cond_col1, op_cond_col2 = st.columns(2)
-            with op_cond_col1: nc_temp_ambient = st.number_input("環境溫度 (Ta)", 0, 60, 25, key="nc_ta")
-            with op_cond_col2: nc_temp_surface_peak = st.number_input("外殼允許溫度 (Ts)", nc_temp_ambient + 1, 100, 50, key="nc_ts")
+            with op_cond_col1: nc_temp_ambient = st.number_input("Ambient Temp (Ta)", 0, 60, 25, key="nc_ta")
+            with op_cond_col2: nc_temp_surface_peak = st.number_input("Max. Surface Temp (Ts)", nc_temp_ambient + 1, 100, 50, key="nc_ts")
         with col_nat_result:
-            st.subheader("評估結果")
+            st.subheader("Evaluation Result")
             selected_material_props_nc = natural_convection_materials[nc_material_name]
             nc_results = calculate_natural_convection(nc_dim_L, nc_dim_W, nc_dim_H, nc_temp_surface_peak, nc_temp_ambient, selected_material_props_nc)
-            if nc_results.get("error"): st.error(f"**錯誤:** {nc_results['error']}")
-            else: st.metric(label="✅ 最大可解析瓦數", value=f"{nc_results['total_power']:.2f} W", help="此結果已內建材質的溫度均勻性及固定的工程安全係數 (0.9)。")
+            if nc_results.get("error"): st.error(f"**Error:** {nc_results['error']}")
+            else: st.metric(label="✅ Max. Dissipatable Power", value=f"{nc_results['total_power']:.2f} W", help="This result includes built-in material uniformity and a fixed engineering safety factor (0.9).")
 
     with tab_force:
-        st.header("主動散熱風量估算")
+        st.header("Active Cooling Airflow Estimator")
         col_force_input, col_force_result = st.columns(2, gap="large")
         with col_force_input:
-            st.subheader("輸入參數")
+            st.subheader("Input Parameters")
             fc_param_col1, fc_param_col2 = st.columns(2, gap="medium")
-            with fc_param_col1: fc_power_q = st.number_input("目標散熱功耗 (Q, W)", 0.1, value=50.0, step=1.0, format="%.1f", help="風扇需要帶走的總熱量 (單位: 瓦)。")
+            with fc_param_col1: fc_power_q = st.number_input("Power to Dissipate (Q, W)", 0.1, value=50.0, step=1.0, format="%.1f", help="The total heat (in Watts) that the fan must remove.")
             with fc_param_col2:
-                fc_temp_in = st.number_input("進風口溫度 (Tin, °C)", 0, 60, 25, key="fc_tin")
-                fc_temp_out = st.number_input("最高允許出風口溫度 (Tout, °C)", fc_temp_in + 1, 100, 45, key="fc_tout")
-            st.subheader("計算公式")
+                fc_temp_in = st.number_input("Inlet Air Temp (Tin, °C)", 0, 60, 25, key="fc_tin")
+                fc_temp_out = st.number_input("Max. Outlet Temp (Tout, °C)", fc_temp_in + 1, 100, 45, key="fc_tout")
+            st.subheader("Governing Equation")
             st.latex(r"Q = \dot{m} \cdot C_p \cdot \Delta T")
         with col_force_result:
-            st.subheader("評估結果")
+            st.subheader("Evaluation Result")
             fc_results = calculate_forced_convection(fc_power_q, fc_temp_in, fc_temp_out)
-            if fc_results.get("error"): st.error(f"**錯誤:** {fc_results['error']}")
-            else: st.metric(label="🌬️ 所需風量", value=f"{fc_results['cfm']:.2f} CFM", help="CFM (Cubic Feet per Minute): 立方英尺/分鐘。")
+            if fc_results.get("error"): st.error(f"**Error:** {fc_results['error']}")
+            else: st.metric(label="🌬️ Required Airflow", value=f"{fc_results['cfm']:.2f} CFM", help="CFM: Cubic Feet per Minute.")
 
     with tab_solar:
-        st.header("太陽輻射熱增益估算")
+        st.header("Solar Heat Gain Estimator")
         col_solar_input, col_solar_result = st.columns(2, gap="large")
         with col_solar_input:
-            st.subheader("輸入參數")
-            solar_material_name = st.selectbox("外殼顏色/表面處理", options=list(solar_absorptivity_materials.keys()) + ["其他..."], key="solar_mat")
-            if solar_material_name == "其他...":
-                alpha_val = st.number_input("自訂吸收率 (α)", 0.0, 1.0, 0.5, 0.05)
+            st.subheader("Input Parameters")
+            solar_material_name = st.selectbox("Enclosure Color/Finish", options=list(solar_absorptivity_materials.keys()) + ["Other..."], key="solar_mat")
+            if solar_material_name == "Other...":
+                alpha_val = st.number_input("Custom Absorptivity (α)", 0.0, 1.0, 0.5, 0.05)
             else:
                 alpha_val = solar_absorptivity_materials[solar_material_name]["absorptivity"]
-                st.number_input("對應吸收率 (α)", value=alpha_val, disabled=True)
-            projected_area_mm2 = st.number_input("曝曬投影面積 (mm²)", 0.0, value=30000.0, step=1000.0, format="%.1f")
-            solar_irradiance_val = st.number_input("太陽輻射強度 (W/m²)", 0, value=1000, step=50)
-            st.subheader("計算公式")
+                st.number_input("Corresponding Absorptivity (α)", value=alpha_val, disabled=True)
+            projected_area_mm2 = st.number_input("Projected Surface Area (mm²)", 0.0, value=30000.0, step=1000.0, format="%.1f")
+            solar_irradiance_val = st.number_input("Solar Irradiance (W/m²)", 0, value=1000, step=50)
+            st.subheader("Governing Equation")
             st.latex(r"Q_{solar} = \alpha \cdot A_{proj} \cdot G_{solar}")
         with col_solar_result:
-            st.subheader("評估結果")
+            st.subheader("Evaluation Result")
             solar_results = calculate_solar_gain(projected_area_mm2, alpha_val, solar_irradiance_val)
-            if solar_results.get("error"): st.error(f"**錯誤:** {solar_results['error']}")
-            else: st.metric(label="☀️ 額外吸收的太陽輻射熱", value=f"{solar_results['solar_gain']:.2f} W")
+            if solar_results.get("error"): st.error(f"**Error:** {solar_results['error']}")
+            else: st.metric(label="☀️ Absorbed Solar Heat Gain", value=f"{solar_results['solar_gain']:.2f} W")
 
 def render_cobra_ui():
     cobra_logo_svg = """..."""
