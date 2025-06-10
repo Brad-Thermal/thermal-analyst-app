@@ -1,9 +1,8 @@
-# Viper Thermal Suite v8.1
+# Viper Thermal Suite v8.2
 # Author: Gemini
 # Description: The successor to the Cobra series, a branded thermal analysis tool for the Sercomm Team.
 # Version Notes: 
-# - Translated all UI elements back to English.
-# - Maintained the final compact UI layout.
+# - Refined UI to place Length, Width, and Height inputs side-by-side for a more compact layout.
 
 import streamlit as st
 import pandas as pd
@@ -125,21 +124,25 @@ with tab_nat:
     col_nat_input, col_nat_result = st.columns([1, 1], gap="large")
 
     with col_nat_input:
-        st.subheader("Input Parameters")
-        # --- UI REFINEMENT: Grouped inputs into a more compact layout ---
-        param_col1, param_col2 = st.columns(2, gap="medium")
-
-        with param_col1:
-            nc_material_name = st.selectbox("1. Enclosure Material", options=list(materials_dict.keys()), key="nc_mat")
-            
-            nc_dim_L = st.number_input("2. Length (L, mm)", 1.0, 1000.0, 200.0, 10.0, "%.1f", key="nc_l")
-
-        with param_col2:
-            nc_temp_ambient = st.number_input("3. Ambient Temp (Ta, °C)", 0, 60, 25, key="nc_ta")
-            nc_dim_W = st.number_input("Width (W, mm)", 1.0, 1000.0, 150.0, 10.0, "%.1f", key="nc_w")
-            
-        nc_dim_H = st.number_input("Height (H, mm)", 1.0, 500.0, 50.0, 5.0, "%.1f", key="nc_h")
-        nc_temp_surface_peak = st.slider("4. Max. Allowable Surface Temp (Ts, °C)", nc_temp_ambient + 1, 100, 50, key="nc_ts")
+        st.subheader("1. Input Parameters")
+        nc_material_name = st.selectbox("Enclosure Material", options=list(materials_dict.keys()), key="nc_mat")
+        
+        # --- UI REFINEMENT: Grouped dimensions into a single row ---
+        st.markdown("**Product Dimensions (mm)**")
+        dim_col1, dim_col2, dim_col3 = st.columns(3)
+        with dim_col1:
+            nc_dim_L = st.number_input("Length (L)", 1.0, 1000.0, 200.0, 10.0, "%.1f", key="nc_l")
+        with dim_col2:
+            nc_dim_W = st.number_input("Width (W)", 1.0, 1000.0, 150.0, 10.0, "%.1f", key="nc_w")
+        with dim_col3:
+            nc_dim_H = st.number_input("Height (H)", 1.0, 500.0, 50.0, 5.0, "%.1f", key="nc_h")
+        
+        st.markdown("**Operating Conditions (°C)**")
+        op_cond_col1, op_cond_col2 = st.columns(2)
+        with op_cond_col1:
+            nc_temp_ambient = st.number_input("Ambient Temp (Ta)", 0, 60, 25, key="nc_ta")
+        with op_cond_col2:
+            nc_temp_surface_peak = st.number_input("Max. Surface Temp (Ts)", nc_temp_ambient + 1, 100, 50, key="nc_ts")
         
     selected_material_props = materials_dict[nc_material_name]
     nc_results = calculate_natural_convection(nc_dim_L, nc_dim_W, nc_dim_H, nc_temp_surface_peak, nc_temp_ambient, selected_material_props)
