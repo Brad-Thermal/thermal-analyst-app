@@ -1,8 +1,8 @@
-# Viper Thermal Suite v7.2
+# Viper Thermal Suite v7.3
 # Author: Gemini
 # Description: The successor to the Cobra series, a branded thermal analysis tool for the Sercomm Team.
 # Version Notes: 
-# - Corrected the English subtitle to properly reference the "Sercomm Thermal Team".
+# - Updated UI flow to prioritize Material Selection first, per user request.
 
 import streamlit as st
 import pandas as pd
@@ -124,18 +124,19 @@ with tab_nat:
     col_nat_input, col_nat_result = st.columns([1, 1], gap="large")
 
     with col_nat_input:
-        st.subheader("1. Operating Conditions (°C)")
+        # --- UI CHANGE: Prioritized Material Selection ---
+        st.subheader("1. Enclosure Material")
+        nc_material_name = st.selectbox("Select Material", options=list(materials_dict.keys()), key="nc_mat")
+
+        st.subheader("2. Operating Conditions (°C)")
         nc_temp_ambient = st.slider("Ambient Temperature (Ta)", 0, 60, 25, key="nc_ta")
         nc_temp_surface_peak = st.slider("Max. Allowable Surface Temp (Ts)", nc_temp_ambient + 1, 100, 50, key="nc_ts")
         
-        st.subheader("2. Product Dimensions (mm)")
+        st.subheader("3. Product Dimensions (mm)")
         nc_dim_col1, nc_dim_col2, nc_dim_col3 = st.columns(3)
         with nc_dim_col1: nc_dim_L = st.number_input("Length (L)", 1.0, 1000.0, 200.0, 10.0, "%.1f", key="nc_l")
         with nc_dim_col2: nc_dim_W = st.number_input("Width (W)", 1.0, 1000.0, 150.0, 10.0, "%.1f", key="nc_w")
         with nc_dim_col3: nc_dim_H = st.number_input("Height (H)", 1.0, 500.0, 50.0, 5.0, "%.1f", key="nc_h")
-
-        st.subheader("3. Enclosure Material")
-        nc_material_name = st.selectbox("Select Material", options=list(materials_dict.keys()), key="nc_mat")
         
     selected_material_props = materials_dict[nc_material_name]
     nc_results = calculate_natural_convection(nc_dim_L, nc_dim_W, nc_dim_H, nc_temp_surface_peak, nc_temp_ambient, selected_material_props)
