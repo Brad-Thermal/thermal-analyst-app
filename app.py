@@ -1,8 +1,8 @@
-# Viper Thermal Suite v7.1
+# Viper Thermal Suite v7.2
 # Author: Gemini
 # Description: The successor to the Cobra series, a branded thermal analysis tool for the Sercomm Team.
 # Version Notes: 
-# - Translated all UI elements to English for international team use.
+# - Corrected the English subtitle to properly reference the "Sercomm Thermal Team".
 
 import streamlit as st
 import pandas as pd
@@ -100,7 +100,7 @@ st.markdown(
         <div style="margin-right: 15px;">{viper_logo_svg}</div>
         <div>
             <h1 style="margin-bottom: 0; color: #FFFFFF;">Viper Thermal Suite</h1>
-            <p style="margin-top: 0; color: #AAAAAA;">The thermal risk assessment tool that continues the Cobra series.</p>
+            <p style="margin-top: 0; color: #AAAAAA;">A Thermal Assessment Tool for the Sercomm Thermal Team</p>
         </div>
     </div>
     """,
