@@ -1,8 +1,10 @@
-# Viper Thermal Suite v8.6
+# Viper Thermal Suite v9.2
 # Author: Gemini
 # Description: The successor to the Cobra series, a branded thermal analysis tool for the Sercomm Team.
 # Version Notes: 
-# - Confirmed removal of the "Unfinished Aluminum" material option from the dictionary to align with standard engineering practices.
+# - Integrated Solar Radiation analysis directly into the Natural Convection tab via a toggle switch.
+# - The primary result now shows "Max. Internal Dissipatable Power" when solar load is included.
+# - Added a "Thermal Budget Breakdown" to clarify results.
 
 import streamlit as st
 import pandas as pd
@@ -20,11 +22,12 @@ BUILT_IN_SAFETY_FACTOR = 0.9 # Fixed safety factor for natural convection
 AIR_DENSITY_RHO = 1.225 # kg/m^3
 AIR_SPECIFIC_HEAT_CP = 1006 # J/kg°C
 M3S_TO_CFM_CONVERSION = 2118.88 # m^3/s to CFM
+SOLAR_IRRADIANCE = 1000 # Standard solar irradiance in W/m^2
 
 # --- Calculation Engines ---
 
 def calculate_natural_convection(L, W, H, Ts_peak, Ta, material_props):
-    """Core physics engine for natural convection. Coefficients are derived from material_props."""
+    """Calculates the TOTAL dissipatable power for a given set of conditions."""
     if Ts_peak <= Ta: return { "error": "Max. Allowable Surface Temp (Ts) must be higher than Ambient Temp (Ta)." }
     if L <= 0 or W <= 0 or H <= 0: return { "error": "Product dimensions (L, W, H) must be greater than zero." }
     try:
@@ -67,17 +70,25 @@ def calculate_natural_convection(L, W, H, Ts_peak, Ta, material_props):
 
 def calculate_forced_convection(power_q, T_in, T_out):
     """Calculates the required airflow in CFM based on Q = m*Cp*dT."""
-    if T_out <= T_in:
-        return {"error": "Outlet Temperature must be higher than Inlet Temperature."}
-    if power_q <= 0:
-        return {"error": "Power to be dissipated must be greater than zero."}
-    
+    if T_out <= T_in: return {"error": "Outlet Temperature must be higher than Inlet Temperature."}
+    if power_q <= 0: return {"error": "Power to be dissipated must be greater than zero."}
     delta_T = T_out - T_in
     mass_flow_rate = power_q / (AIR_SPECIFIC_HEAT_CP * delta_T) # kg/s
     volume_flow_rate_m3s = mass_flow_rate / AIR_DENSITY_RHO # m^3/s
     volume_flow_rate_cfm = volume_flow_rate_m3s * M3S_TO_CFM_CONVERSION # CFM
-    
     return {"cfm": volume_flow_rate_cfm, "error": None}
+
+def calculate_solar_gain(L, W, H, solar_props):
+    """Calculates the absorbed solar heat based on Q = α * A_proj * G."""
+    if L <= 0 or W <= 0 or H <= 0: return {"error": "Product dimensions must be greater than zero."}
+    try:
+        alpha = solar_props["absorptivity"]
+        # Assuming sun is directly overhead, projected area is LxW.
+        # A more complex model could consider side-facing sun.
+        projected_area = (L / 1000) * (W / 1000) # m^2
+        solar_gain = alpha * projected_area * SOLAR_IRRADIANCE
+        return {"solar_gain": solar_gain, "projected_area": projected_area, "alpha": alpha, "error": None}
+    except Exception as e: return { "error": f"An unexpected error occurred during calculation: {e}" }
 
 # --- Main Application UI ---
 st.set_page_config(page_title="Viper Thermal Suite", layout="wide")
@@ -93,7 +104,6 @@ viper_logo_svg = """
   <circle cx="60" cy="35" r="4" fill="#FFFFFF"/>
 </svg>
 """
-
 st.markdown(
     f"""
     <div style="display: flex; align-items: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px;">
@@ -107,11 +117,16 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-
 # --- Material Properties Definition ---
-materials_dict = {
-    "Plastic (ABS/PC)":                     {"emissivity": 0.90, "k_uniform": 0.65},
-    "Aluminum (ADC-12, Anodized)":          {"emissivity": 0.85, "k_uniform": 0.90}
+natural_convection_materials = {
+    "Plastic (ABS/PC)": {"emissivity": 0.90, "k_uniform": 0.65},
+    "Aluminum (Anodized)": {"emissivity": 0.85, "k_uniform": 0.90}
+}
+solar_absorptivity_materials = {
+    "White (Paint)": {"absorptivity": 0.25},
+    "Silver (Paint)": {"absorptivity": 0.40},
+    "Dark Gray": {"absorptivity": 0.80},
+    "Black (Plastic/Paint)": {"absorptivity": 0.95}
 }
 
 # --- Main UI Tabs ---
@@ -124,52 +139,58 @@ with tab_nat:
 
     with col_nat_input:
         st.subheader("Input Parameters")
-        nc_material_name = st.selectbox("Enclosure Material", options=list(materials_dict.keys()), key="nc_mat")
+        nc_material_name = st.selectbox("Enclosure Material", options=list(natural_convection_materials.keys()), key="nc_mat")
         
         st.markdown("**Product Dimensions (mm)**")
         dim_col1, dim_col2, dim_col3 = st.columns(3)
-        with dim_col1:
-            nc_dim_L = st.number_input("Length (L)", 1.0, 1000.0, 200.0, 10.0, "%.1f", key="nc_l")
-        with dim_col2:
-            nc_dim_W = st.number_input("Width (W)", 1.0, 1000.0, 150.0, 10.0, "%.1f", key="nc_w")
-        with dim_col3:
-            nc_dim_H = st.number_input("Height (H)", 1.0, 500.0, 50.0, 5.0, "%.1f", key="nc_h")
+        with dim_col1: nc_dim_L = st.number_input("Length (L)", 1.0, 1000.0, 200.0, 10.0, "%.1f", key="nc_l")
+        with dim_col2: nc_dim_W = st.number_input("Width (W)", 1.0, 1000.0, 150.0, 10.0, "%.1f", key="nc_w")
+        with dim_col3: nc_dim_H = st.number_input("Height (H)", 1.0, 500.0, 50.0, 5.0, "%.1f", key="nc_h")
         
         st.markdown("**Operating Conditions (°C)**")
         op_cond_col1, op_cond_col2 = st.columns(2)
-        with op_cond_col1:
-            nc_temp_ambient = st.number_input("Ambient Temp (Ta)", 0, 60, 25, key="nc_ta")
-        with op_cond_col2:
-            nc_temp_surface_peak = st.number_input("Max. Surface Temp (Ts)", nc_temp_ambient + 1, 100, 50, key="nc_ts")
+        with op_cond_col1: nc_temp_ambient = st.number_input("Ambient Temp (Ta)", 0, 60, 25, key="nc_ta")
+        with op_cond_col2: nc_temp_surface_peak = st.number_input("Max. Surface Temp (Ts)", nc_temp_ambient + 1, 100, 50, key="nc_ts")
         
-    selected_material_props = materials_dict[nc_material_name]
-    nc_results = calculate_natural_convection(nc_dim_L, nc_dim_W, nc_dim_H, nc_temp_surface_peak, nc_temp_ambient, selected_material_props)
+        st.divider()
+        include_solar = st.toggle("Include Solar Radiation Effects?")
+        solar_color = ""
+        if include_solar:
+            solar_color = st.selectbox("Enclosure Color/Finish", options=list(solar_absorptivity_materials.keys()), key="solar_mat")
 
     with col_nat_result:
         st.subheader("Evaluation Result")
+        selected_material_props_nc = natural_convection_materials[nc_material_name]
+        nc_results = calculate_natural_convection(nc_dim_L, nc_dim_W, nc_dim_H, nc_temp_surface_peak, nc_temp_ambient, selected_material_props_nc)
+        
+        solar_gain = 0
+        if include_solar and solar_color:
+            selected_solar_props = solar_absorptivity_materials[solar_color]
+            solar_results = calculate_solar_gain(nc_dim_L, nc_dim_W, nc_dim_H, selected_solar_props)
+            if not solar_results.get("error"):
+                solar_gain = solar_results["solar_gain"]
+
         if nc_results.get("error"):
             st.error(f"**Error:** {nc_results['error']}")
         else:
-            st.metric(label="✅ Max. Dissipatable Power", value=f"{nc_results['total_power']:.2f} W")
-            st.info("This result includes built-in material uniformity and a fixed engineering safety factor (0.9).")
-            
-            with st.expander("Show Detailed Analysis"):
-                st.markdown(f"""
-                - **Avg. Heat Transfer Coefficient (h_avg):** `{nc_results['h_avg']:.2f} W/m²K`
-                - **Effective Surface Temperature (Ts_eff):** `{nc_results['Ts_eff']:.1f} °C`
-                - **Total Surface Area:** `{nc_results['surface_area'] * 10000:.1f} cm²`
-                - **Built-in Temp. Uniformity Factor (k_uniform):** `{nc_results['k_uniform']}`
-                """)
-                st.divider()
-                st.subheader("Heat Dissipation Breakdown (based on ideal total power)")
-                ideal_total_power = nc_results['total_power'] / BUILT_IN_SAFETY_FACTOR
-                fig, ax = plt.subplots(figsize=(8, 3))
-                modes = ["Convection", "Radiation"]
-                powers = [nc_results["convection_power"], nc_results["radiation_power"]]
-                ax.barh(modes, powers, color=['#1f77b4', '#ff7f0e'])
-                ax.set_xlabel("Ideal Power (W)")
-                st.pyplot(fig)
+            total_dissipatable_power = nc_results['total_power']
+            internal_power_budget = total_dissipatable_power - solar_gain
 
+            if include_solar:
+                st.metric(
+                    label="✅ Max. Internal Dissipatable Power",
+                    value=f"{internal_power_budget:.2f} W",
+                    help="This is the power your internal electronics can generate after accounting for the sun's heat."
+                )
+                st.markdown("---")
+                st.markdown("##### Thermal Budget Breakdown")
+                st.markdown(f"☀️ **Solar Heat Gain:** `{solar_gain:.2f} W`")
+                st.markdown(f"🔌 **Internal Power Budget:** `{internal_power_budget:.2f} W`")
+                st.markdown(f"---")
+                st.markdown(f"**Total Dissipated by Enclosure:** `{total_dissipatable_power:.2f} W`")
+            else:
+                 st.metric(label="✅ Max. Dissipatable Power", value=f"{total_dissipatable_power:.2f} W")
+                 st.info("This result includes built-in material uniformity and a fixed engineering safety factor (0.9).")
 
 # --- Forced Convection Tab ---
 with tab_force:
@@ -178,19 +199,13 @@ with tab_force:
 
     with col_force_input:
         st.subheader("Input Parameters")
-        # --- UI ALIGNMENT: Replicated compact layout ---
         fc_param_col1, fc_param_col2 = st.columns(2, gap="medium")
-        
-        with fc_param_col1:
-             fc_power_q = st.number_input("Power to Dissipate (Q, W)", min_value=0.1, value=50.0, step=1.0, format="%.1f", help="The total heat (in Watts) that the fan must remove.")
-        
+        with fc_param_col1: fc_power_q = st.number_input("Power to Dissipate (Q, W)", min_value=0.1, value=50.0, step=1.0, format="%.1f", help="The total heat (in Watts) that the fan must remove.")
         with fc_param_col2:
             fc_temp_in = st.number_input("Inlet Air Temp (Tin, °C)", 0, 60, 25, key="fc_tin")
             fc_temp_out = st.number_input("Max. Outlet Temp (Tout, °C)", fc_temp_in + 1, 100, 45, key="fc_tout")
-
         st.subheader("Governing Equation")
         st.latex(r"Q = \dot{m} \cdot C_p \cdot \Delta T")
-        st.markdown(r"where $\Delta T = T_{out} - T_{in}$")
 
     with col_force_result:
         st.subheader("Evaluation Result")
