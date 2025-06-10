@@ -1,10 +1,9 @@
-# Viper Thermal Suite v10.0
+# Viper Thermal Suite v11.1
 # Author: Gemini
-# Description: The final, modular version of the thermal analysis tool.
+# Description: The successor to the Cobra series, a branded thermal analysis tool for the Sercomm Team.
 # Version Notes: 
-# - Separated Solar Radiation into its own dedicated tab for maximum clarity, per user request.
-# - The Natural Convection calculator is now completely independent of solar effects.
-# - This design provides three distinct, purpose-driven tools within a single suite.
+# - Translated all UI elements to English.
+# - Includes the "Other" option for custom solar absorptivity.
 
 import streamlit as st
 import pandas as pd
@@ -73,11 +72,10 @@ def calculate_forced_convection(power_q, T_in, T_out):
     volume_flow_rate_cfm = volume_flow_rate_m3s * M3S_TO_CFM_CONVERSION # CFM
     return {"cfm": volume_flow_rate_cfm, "error": None}
 
-def calculate_solar_gain(L, W, solar_props, solar_irradiance):
+def calculate_solar_gain(L, W, alpha, solar_irradiance):
     """Calculates the absorbed solar heat based on Q = α * A_proj * G."""
     if L <= 0 or W <= 0: return {"error": "Product Length and Width must be greater than zero."}
     try:
-        alpha = solar_props["absorptivity"]
         projected_area = (L / 1000) * (W / 1000) # m^2
         solar_gain = alpha * projected_area * solar_irradiance
         return {"solar_gain": solar_gain, "error": None}
@@ -157,13 +155,13 @@ with tab_nat:
             st.metric(
                 label="✅ Max. Dissipatable Power",
                 value=f"{nc_results['total_power']:.2f} W",
-                help="The total power the enclosure can dissipate. This result includes built-in material uniformity and a fixed engineering safety factor (0.9)."
+                help="This result includes built-in material uniformity and a fixed engineering safety factor (0.9)."
             )
 
 # --- Forced Convection Tab ---
 with tab_force:
     st.header("Active Cooling Airflow Estimator")
-    col_force_input, col_force_result = st.columns([1, 1], gap="large")
+    col_force_input, col_force_result = st.columns(2, gap="large")
 
     with col_force_input:
         st.subheader("Input Parameters")
@@ -194,8 +192,24 @@ with tab_solar:
 
     with col_solar_input:
         st.subheader("Input Parameters")
-        solar_material_name = st.selectbox("1. Enclosure Color/Finish", options=list(solar_absorptivity_materials.keys()), key="solar_mat")
         
+        # --- ENHANCEMENT: Custom Absorptivity ---
+        solar_material_name = st.selectbox(
+            "1. Enclosure Color/Finish",
+            options=list(solar_absorptivity_materials.keys()) + ["Other..."],
+            key="solar_mat"
+        )
+        
+        if solar_material_name == "Other...":
+            alpha_val = st.number_input(
+                "Custom Absorptivity (α)", 
+                min_value=0.0, max_value=1.0, value=0.5, step=0.05,
+                help="Enter a custom solar absorptivity value for your specific CMF."
+            )
+        else:
+            alpha_val = solar_absorptivity_materials[solar_material_name]["absorptivity"]
+            st.number_input("Corresponding Absorptivity (α)", value=alpha_val, disabled=True)
+
         st.markdown("**Projected Area Dimensions (mm)**")
         solar_dim_col1, solar_dim_col2 = st.columns(2)
         with solar_dim_col1:
@@ -210,8 +224,7 @@ with tab_solar:
 
     with col_solar_result:
         st.subheader("Evaluation Result")
-        selected_solar_props = solar_absorptivity_materials[solar_material_name]
-        solar_results = calculate_solar_gain(solar_dim_L, solar_dim_W, selected_solar_props, solar_irradiance_val)
+        solar_results = calculate_solar_gain(solar_dim_L, solar_dim_W, alpha_val, solar_irradiance_val)
         
         if solar_results.get("error"):
             st.error(f"**Error:** {solar_results['error']}")
