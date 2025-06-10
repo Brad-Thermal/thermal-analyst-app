@@ -1,8 +1,8 @@
-# Viper Thermal Suite v8.2
+# Viper Thermal Suite v8.3
 # Author: Gemini
 # Description: The successor to the Cobra series, a branded thermal analysis tool for the Sercomm Team.
 # Version Notes: 
-# - Refined UI to place Length, Width, and Height inputs side-by-side for a more compact layout.
+# - Aligned the UI of the "Forced Convection" tab to match the compact layout of the "Natural Convection" tab for a consistent user experience.
 
 import streamlit as st
 import pandas as pd
@@ -124,10 +124,9 @@ with tab_nat:
     col_nat_input, col_nat_result = st.columns([1, 1], gap="large")
 
     with col_nat_input:
-        st.subheader("1. Input Parameters")
+        st.subheader("Input Parameters")
         nc_material_name = st.selectbox("Enclosure Material", options=list(materials_dict.keys()), key="nc_mat")
         
-        # --- UI REFINEMENT: Grouped dimensions into a single row ---
         st.markdown("**Product Dimensions (mm)**")
         dim_col1, dim_col2, dim_col3 = st.columns(3)
         with dim_col1:
@@ -179,10 +178,16 @@ with tab_force:
     col_force_input, col_force_result = st.columns([1, 1], gap="large")
 
     with col_force_input:
-        st.subheader("1. Heat & Temperature Conditions")
-        fc_power_q = st.number_input("Power to be Dissipated (Q)", min_value=0.1, value=50.0, step=1.0, format="%.1f", help="The total amount of heat (in Watts) that the fan needs to remove.")
-        fc_temp_in = st.slider("Inlet Air Temperature (Tin)", 0, 60, 25, key="fc_tin", help="The temperature of the air entering the device.")
-        fc_temp_out = st.slider("Max. Outlet Air Temperature (Tout)", fc_temp_in + 1, 100, 45, key="fc_tout", help="The maximum acceptable temperature of the air exiting the device.")
+        st.subheader("Input Parameters")
+        # --- UI ALIGNMENT: Replicated compact layout ---
+        fc_param_col1, fc_param_col2 = st.columns(2, gap="medium")
+        
+        with fc_param_col1:
+             fc_power_q = st.number_input("Power to Dissipate (Q)", min_value=0.1, value=50.0, step=1.0, format="%.1f", help="The total heat (in Watts) the fan must remove.")
+        
+        with fc_param_col2:
+            fc_temp_in = st.number_input("Inlet Air Temp (Tin, °C)", 0, 60, 25, key="fc_tin")
+            fc_temp_out = st.number_input("Max. Outlet Temp (Tout, °C)", fc_temp_in + 1, 100, 45, key="fc_tout")
 
         st.subheader("Governing Equation")
         st.latex(r"Q = \dot{m} \cdot C_p \cdot \Delta T")
