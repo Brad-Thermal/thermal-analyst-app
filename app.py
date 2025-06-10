@@ -1,8 +1,8 @@
-# Viper Thermal Suite v9.4
+# Viper Thermal Suite v9.5
 # Author: Gemini
 # Description: The successor to the Cobra series, a branded thermal analysis tool for the Sercomm Team.
 # Version Notes: 
-# - Integrated the main result and the thermal budget breakdown into a single, cohesive block to eliminate redundancy.
+# - Integrated the main result and the thermal budget breakdown into a single, cohesive block to eliminate redundancy, per user feedback.
 # - The result display now logically shows the calculation flow.
 
 import streamlit as st
@@ -142,7 +142,7 @@ with tab_nat:
         dim_col1, dim_col2, dim_col3 = st.columns(3)
         with dim_col1: nc_dim_L = st.number_input("Length (L)", 1.0, 1000.0, 200.0, 10.0, "%.1f", key="nc_l")
         with dim_col2: nc_dim_W = st.number_input("Width (W)", 1.0, 1000.0, 150.0, 10.0, "%.1f", key="nc_w")
-        with dim_col3: nc_dim_H = st.number_input("Height (H)", 1.0, 500.0, 50.0, 5.0, "%.1f", key="nc_h")
+        with dim_col3: nc_dim_H = st.number_input("Height (H)", 1.0, 500.0, 5.0, "%.1f", key="nc_h")
         
         st.markdown("**Operating Conditions (°C)**")
         op_cond_col1, op_cond_col2 = st.columns(2)
@@ -180,20 +180,24 @@ with tab_nat:
             internal_power_budget = total_dissipatable_power - solar_gain
 
             if include_solar:
-                # --- INTEGRATED RESULT DISPLAY ---
+                # --- INTEGRATED RESULT DISPLAY (v9.5) ---
                 st.markdown("##### Thermal Budget Calculation")
-                col1, col2 = st.columns([2,1])
-                with col1:
-                    st.write("Total Dissipatable Power by Enclosure")
-                    st.write("(-) Solar Heat Gain")
-                    st.markdown('<hr style="margin:0.5rem 0; border-color: #555;">', unsafe_allow_html=True)
-                    st.write("**(=) Max. Internal Dissipatable Power**")
-                with col2:
-                    st.write(f"`{total_dissipatable_power:.2f} W`")
-                    st.write(f"`{solar_gain:.2f} W`")
-                    st.markdown('<hr style="margin:0.5rem 0; border-color: #555;">', unsafe_allow_html=True)
-                    st.write(f"**`{internal_power_budget:.2f} W`**")
                 
+                # Create a more structured layout for the budget
+                budget_container = st.container(border=True)
+                bc1, bc2 = budget_container.columns([2,1])
+                bc1.write("Total Dissipatable Power by Enclosure")
+                bc2.write(f"`{total_dissipatable_power:.2f} W`")
+                bc1.write("(-) Solar Heat Gain")
+                bc2.write(f"`{solar_gain:.2f} W`")
+                
+                budget_container.markdown("---")
+                
+                # Display the final, most important metric clearly
+                final_col1, final_col2 = budget_container.columns([2,1])
+                final_col1.markdown("**(=) Max. Internal Dissipatable Power**")
+                final_col2.markdown(f"**`{internal_power_budget:.2f} W`**")
+
                 if internal_power_budget < 0:
                     st.error("The solar heat gain is greater than the enclosure's total dissipation capability. The internal temperature will exceed the specified limit.", icon="🔥")
 
