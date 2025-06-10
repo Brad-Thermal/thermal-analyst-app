@@ -1,9 +1,9 @@
-# Viper Thermal Suite v9.5
+# Viper Thermal Suite v9.6
 # Author: Gemini
 # Description: The successor to the Cobra series, a branded thermal analysis tool for the Sercomm Team.
 # Version Notes: 
-# - Integrated the main result and the thermal budget breakdown into a single, cohesive block to eliminate redundancy, per user feedback.
-# - The result display now logically shows the calculation flow.
+# - Redesigned the result panel to show "Without Solar Load" and "With Solar Load" side-by-side for direct comparison.
+# - Removed the toggle switch; solar parameters are now always visible for a consistent UI.
 
 import streamlit as st
 import pandas as pd
@@ -132,7 +132,7 @@ tab_nat, tab_force = st.tabs(["🍃 Natural Convection", "🌬️ Forced Convect
 # --- Natural Convection Tab ---
 with tab_nat:
     st.header("Passive Cooling Power Estimator")
-    col_nat_input, col_nat_result = st.columns([1, 1], gap="large")
+    col_nat_input, col_nat_result = st.columns(2, gap="large")
 
     with col_nat_input:
         st.subheader("Input Parameters")
@@ -142,7 +142,7 @@ with tab_nat:
         dim_col1, dim_col2, dim_col3 = st.columns(3)
         with dim_col1: nc_dim_L = st.number_input("Length (L)", 1.0, 1000.0, 200.0, 10.0, "%.1f", key="nc_l")
         with dim_col2: nc_dim_W = st.number_input("Width (W)", 1.0, 1000.0, 150.0, 10.0, "%.1f", key="nc_w")
-        with dim_col3: nc_dim_H = st.number_input("Height (H)", 1.0, 500.0, 5.0, "%.1f", key="nc_h")
+        with dim_col3: nc_dim_H = st.number_input("Height (H)", 1.0, 500.0, 50.0, 5.0, "%.1f", key="nc_h")
         
         st.markdown("**Operating Conditions (°C)**")
         op_cond_col1, op_cond_col2 = st.columns(2)
@@ -150,60 +150,50 @@ with tab_nat:
         with op_cond_col2: nc_temp_surface_peak = st.number_input("Max. Surface Temp (Ts)", nc_temp_ambient + 1, 100, 50, key="nc_ts")
         
         st.divider()
-        include_solar = st.toggle("Include Solar Radiation Effects?")
-        solar_color = ""
-        solar_irradiance_val = 1000 # Default value
-        if include_solar:
-            st.markdown("##### Solar Load Parameters")
-            solar_col1, solar_col2 = st.columns(2)
-            with solar_col1:
-                solar_color = st.selectbox("Enclosure Color/Finish", options=list(solar_absorptivity_materials.keys()), key="solar_mat")
-            with solar_col2:
-                solar_irradiance_val = st.number_input("Solar Irradiance (G, W/m²)", min_value=0, value=1000, step=50)
+        st.markdown("##### Solar Load Parameters")
+        solar_col1, solar_col2 = st.columns(2)
+        with solar_col1:
+            solar_color = st.selectbox("Enclosure Color/Finish", options=list(solar_absorptivity_materials.keys()), key="solar_mat")
+        with solar_col2:
+            solar_irradiance_val = st.number_input("Solar Irradiance (G, W/m²)", min_value=0, value=1000, step=50)
 
     with col_nat_result:
-        st.subheader("Evaluation Result")
+        st.subheader("Evaluation Result Comparison")
         selected_material_props_nc = natural_convection_materials[nc_material_name]
         nc_results = calculate_natural_convection(nc_dim_L, nc_dim_W, nc_dim_H, nc_temp_surface_peak, nc_temp_ambient, selected_material_props_nc)
         
-        solar_gain = 0
-        if include_solar and solar_color:
-            selected_solar_props = solar_absorptivity_materials[solar_color]
-            solar_results = calculate_solar_gain(nc_dim_L, nc_dim_W, selected_solar_props, solar_irradiance_val)
-            if not solar_results.get("error"):
-                solar_gain = solar_results["solar_gain"]
-
+        selected_solar_props = solar_absorptivity_materials[solar_color]
+        solar_results = calculate_solar_gain(nc_dim_L, nc_dim_W, selected_solar_props, solar_irradiance_val)
+        
         if nc_results.get("error"):
             st.error(f"**Error:** {nc_results['error']}")
+        elif solar_results.get("error"):
+            st.error(f"**Error:** {solar_results['error']}")
         else:
             total_dissipatable_power = nc_results['total_power']
+            solar_gain = solar_results["solar_gain"]
             internal_power_budget = total_dissipatable_power - solar_gain
 
-            if include_solar:
-                # --- INTEGRATED RESULT DISPLAY (v9.5) ---
-                st.markdown("##### Thermal Budget Calculation")
-                
-                # Create a more structured layout for the budget
-                budget_container = st.container(border=True)
-                bc1, bc2 = budget_container.columns([2,1])
-                bc1.write("Total Dissipatable Power by Enclosure")
-                bc2.write(f"`{total_dissipatable_power:.2f} W`")
-                bc1.write("(-) Solar Heat Gain")
-                bc2.write(f"`{solar_gain:.2f} W`")
-                
-                budget_container.markdown("---")
-                
-                # Display the final, most important metric clearly
-                final_col1, final_col2 = budget_container.columns([2,1])
-                final_col1.markdown("**(=) Max. Internal Dissipatable Power**")
-                final_col2.markdown(f"**`{internal_power_budget:.2f} W`**")
-
+            res_col1, res_col2 = st.columns(2, gap="medium")
+            
+            with res_col1:
+                st.markdown("##### Standard Conditions")
+                st.metric(
+                    label="Max. Dissipatable Power",
+                    value=f"{total_dissipatable_power:.2f} W",
+                    help="The total power the enclosure can dissipate without any external solar load."
+                )
+            
+            with res_col2:
+                st.markdown("##### Outdoor Conditions")
+                st.metric(
+                    label="Internal Power Budget",
+                    value=f"{internal_power_budget:.2f} W",
+                    help=f"The remaining power budget for internal electronics after accounting for a solar gain of {solar_gain:.2f} W."
+                )
                 if internal_power_budget < 0:
-                    st.error("The solar heat gain is greater than the enclosure's total dissipation capability. The internal temperature will exceed the specified limit.", icon="🔥")
+                    st.error("Solar gain exceeds dissipation capacity.", icon="🔥")
 
-            else:
-                 st.metric(label="✅ Max. Dissipatable Power", value=f"{total_dissipatable_power:.2f} W")
-                 st.info("This result includes built-in material uniformity and a fixed engineering safety factor (0.9).")
 
 # --- Forced Convection Tab ---
 with tab_force:
