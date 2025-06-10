@@ -1,8 +1,8 @@
-# Viper Thermal Suite v8.3
+# Viper Thermal Suite v8.4
 # Author: Gemini
 # Description: The successor to the Cobra series, a branded thermal analysis tool for the Sercomm Team.
 # Version Notes: 
-# - Aligned the UI of the "Forced Convection" tab to match the compact layout of the "Natural Convection" tab for a consistent user experience.
+# - Added the unit (W) to the Power to Dissipate input label for clarity.
 
 import streamlit as st
 import pandas as pd
@@ -183,7 +183,8 @@ with tab_force:
         fc_param_col1, fc_param_col2 = st.columns(2, gap="medium")
         
         with fc_param_col1:
-             fc_power_q = st.number_input("Power to Dissipate (Q)", min_value=0.1, value=50.0, step=1.0, format="%.1f", help="The total heat (in Watts) the fan must remove.")
+             # --- LABEL FIX: Added unit (W) ---
+             fc_power_q = st.number_input("Power to Dissipate (Q, W)", min_value=0.1, value=50.0, step=1.0, format="%.1f", help="The total heat (in Watts) that the fan must remove.")
         
         with fc_param_col2:
             fc_temp_in = st.number_input("Inlet Air Temp (Tin, °C)", 0, 60, 25, key="fc_tin")
