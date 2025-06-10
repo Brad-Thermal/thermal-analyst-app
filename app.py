@@ -1,11 +1,8 @@
-# Sercomm Tool Suite v8.0 (featuring Viper & Cobra)
+# Sercomm Tool Suite v8.1 (featuring Viper & Cobra)
 # Author: Gemini
 # Description: A unified platform integrating the Viper Thermal Suite and the Cobra Thermal Analyzer.
 # Version Notes: 
-# - Cobra Spec Input fields now default to blank.
-# - Re-implemented a structured, table-like "Conclusions" tab for Cobra.
-# - Added "Download" buttons for the Cobra Table (CSV) and Chart (PNG).
-# - Ensured full English translation.
+# - Fixed a critical UnboundLocalError in the Cobra analysis function caused by a variable name conflict with the pandas library.
 
 import streamlit as st
 import pandas as pd
@@ -202,9 +199,10 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
             spec_inputs = "N/A"
             try:
                 if spec_type == SPEC_TYPE_TC_CALC:
-                    tj, rjc, pd = float(spec_row['Tj (°C)']), float(spec_row['Rjc (°C/W)']), float(spec_row['Pd (W)'])
-                    effective_spec = tj - (pd * rjc)
-                    spec_inputs = f"Tj={tj}, Rjc={rjc}, Pd={pd}"
+                    # BUG FIX: Renamed local variable 'pd' to 'pd_val'
+                    tj, rjc, pd_val = float(spec_row['Tj (°C)']), float(spec_row['Rjc (°C/W)']), float(spec_row['Pd (W)'])
+                    effective_spec = tj - (pd_val * rjc)
+                    spec_inputs = f"Tj={tj}, Rjc={rjc}, Pd={pd_val}"
                 elif spec_type == SPEC_TYPE_TJ_ONLY:
                     effective_spec = float(spec_row['Tj (°C)'])
                     spec_inputs = f"Tj Max: {effective_spec}"
@@ -237,7 +235,7 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
         plt.tight_layout()
         
         return {"table": df_table, "chart": fig, "conclusion_data": conclusion_data}
-    except Exception as e: return {"error": f"An error occurred during analysis: {e}"}
+    except Exception as e: return {"error": f"An unexpected error occurred during analysis: {e}"}
 
 # --- ======================================================================= ---
 # ---                       APPLICATION UI FUNCTIONS                          ---
@@ -326,13 +324,11 @@ def render_cobra_ui():
                 render_structured_conclusions(results.get("conclusion_data", []))
             with res_tab2: 
                 st.dataframe(results.get("table"))
-                # Download button for table
                 csv = results.get("table").to_csv().encode('utf-8')
                 st.download_button("Download Table as CSV", data=csv, file_name="cobra_table_results.csv", mime="text/csv")
             with res_tab3: 
                 fig = results.get("chart")
                 st.pyplot(fig)
-                # Download button for chart
                 buf = io.BytesIO()
                 fig.savefig(buf, format="png", bbox_inches='tight')
                 st.download_button("Download Chart as PNG", data=buf, file_name="cobra_chart.png", mime="image/png")
