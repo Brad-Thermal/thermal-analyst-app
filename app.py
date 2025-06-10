@@ -1,9 +1,10 @@
-# Viper Thermal Suite v9.6
+# Viper Thermal Suite v10.0
 # Author: Gemini
-# Description: The successor to the Cobra series, a branded thermal analysis tool for the Sercomm Team.
+# Description: The final, modular version of the thermal analysis tool.
 # Version Notes: 
-# - Redesigned the result panel to show "Without Solar Load" and "With Solar Load" side-by-side for direct comparison.
-# - Removed the toggle switch; solar parameters are now always visible for a consistent UI.
+# - Separated Solar Radiation into its own dedicated tab for maximum clarity, per user request.
+# - The Natural Convection calculator is now completely independent of solar effects.
+# - This design provides three distinct, purpose-driven tools within a single suite.
 
 import streamlit as st
 import pandas as pd
@@ -57,12 +58,8 @@ def calculate_natural_convection(L, W, H, Ts_peak, Ta, material_props):
         Q_ideal_total = Q_conv_total + Q_rad
         Q_final = Q_ideal_total * BUILT_IN_SAFETY_FACTOR
         results = {
-            "total_power": Q_final, "convection_power": Q_conv_total, "radiation_power": Q_rad,
-            "h_avg": h_avg, "surface_area": A_total, "Ts_eff": Ts_eff, "k_uniform": k_uniform, "error": None
+            "total_power": Q_final, "error": None
         }
-        for k, v in results.items():
-            if isinstance(v, (float, int)) and (np.isnan(v) or np.isinf(v)):
-                return {"error": f"Invalid number (NaN/inf) encountered during calculation."}
         return results
     except Exception as e: return { "error": f"An unexpected error occurred: {e}" }
 
@@ -83,7 +80,7 @@ def calculate_solar_gain(L, W, solar_props, solar_irradiance):
         alpha = solar_props["absorptivity"]
         projected_area = (L / 1000) * (W / 1000) # m^2
         solar_gain = alpha * projected_area * solar_irradiance
-        return {"solar_gain": solar_gain, "projected_area": projected_area, "alpha": alpha, "error": None}
+        return {"solar_gain": solar_gain, "error": None}
     except Exception as e: return { "error": f"An unexpected error occurred during calculation: {e}" }
 
 
@@ -127,7 +124,7 @@ solar_absorptivity_materials = {
 }
 
 # --- Main UI Tabs ---
-tab_nat, tab_force = st.tabs(["🍃 Natural Convection", "🌬️ Forced Convection"])
+tab_nat, tab_force, tab_solar = st.tabs(["🍃 Natural Convection", "🌬️ Forced Convection", "☀️ Solar Radiation"])
 
 # --- Natural Convection Tab ---
 with tab_nat:
@@ -148,52 +145,20 @@ with tab_nat:
         op_cond_col1, op_cond_col2 = st.columns(2)
         with op_cond_col1: nc_temp_ambient = st.number_input("Ambient Temp (Ta)", 0, 60, 25, key="nc_ta")
         with op_cond_col2: nc_temp_surface_peak = st.number_input("Max. Surface Temp (Ts)", nc_temp_ambient + 1, 100, 50, key="nc_ts")
-        
-        st.divider()
-        st.markdown("##### Solar Load Parameters")
-        solar_col1, solar_col2 = st.columns(2)
-        with solar_col1:
-            solar_color = st.selectbox("Enclosure Color/Finish", options=list(solar_absorptivity_materials.keys()), key="solar_mat")
-        with solar_col2:
-            solar_irradiance_val = st.number_input("Solar Irradiance (G, W/m²)", min_value=0, value=1000, step=50)
 
     with col_nat_result:
-        st.subheader("Evaluation Result Comparison")
+        st.subheader("Evaluation Result")
         selected_material_props_nc = natural_convection_materials[nc_material_name]
         nc_results = calculate_natural_convection(nc_dim_L, nc_dim_W, nc_dim_H, nc_temp_surface_peak, nc_temp_ambient, selected_material_props_nc)
         
-        selected_solar_props = solar_absorptivity_materials[solar_color]
-        solar_results = calculate_solar_gain(nc_dim_L, nc_dim_W, selected_solar_props, solar_irradiance_val)
-        
         if nc_results.get("error"):
             st.error(f"**Error:** {nc_results['error']}")
-        elif solar_results.get("error"):
-            st.error(f"**Error:** {solar_results['error']}")
         else:
-            total_dissipatable_power = nc_results['total_power']
-            solar_gain = solar_results["solar_gain"]
-            internal_power_budget = total_dissipatable_power - solar_gain
-
-            res_col1, res_col2 = st.columns(2, gap="medium")
-            
-            with res_col1:
-                st.markdown("##### Standard Conditions")
-                st.metric(
-                    label="Max. Dissipatable Power",
-                    value=f"{total_dissipatable_power:.2f} W",
-                    help="The total power the enclosure can dissipate without any external solar load."
-                )
-            
-            with res_col2:
-                st.markdown("##### Outdoor Conditions")
-                st.metric(
-                    label="Internal Power Budget",
-                    value=f"{internal_power_budget:.2f} W",
-                    help=f"The remaining power budget for internal electronics after accounting for a solar gain of {solar_gain:.2f} W."
-                )
-                if internal_power_budget < 0:
-                    st.error("Solar gain exceeds dissipation capacity.", icon="🔥")
-
+            st.metric(
+                label="✅ Max. Dissipatable Power",
+                value=f"{nc_results['total_power']:.2f} W",
+                help="The total power the enclosure can dissipate. This result includes built-in material uniformity and a fixed engineering safety factor (0.9)."
+            )
 
 # --- Forced Convection Tab ---
 with tab_force:
@@ -221,4 +186,38 @@ with tab_force:
                 value=f"{fc_results['cfm']:.2f} CFM",
                 help="CFM: Cubic Feet per Minute. This is the minimum airflow required to dissipate the specified power under the given temperature constraints."
             )
-            st.info("This calculation assumes standard air density (1.225 kg/m³) and specific heat (1006 J/kg°C).")
+
+# --- Solar Radiation Tab ---
+with tab_solar:
+    st.header("Solar Heat Gain Estimator")
+    col_solar_input, col_solar_result = st.columns(2, gap="large")
+
+    with col_solar_input:
+        st.subheader("Input Parameters")
+        solar_material_name = st.selectbox("1. Enclosure Color/Finish", options=list(solar_absorptivity_materials.keys()), key="solar_mat")
+        
+        st.markdown("**Projected Area Dimensions (mm)**")
+        solar_dim_col1, solar_dim_col2 = st.columns(2)
+        with solar_dim_col1:
+            solar_dim_L = st.number_input("Length (L)", 1.0, 1000.0, 200.0, 10.0, "%.1f", key="solar_l")
+        with solar_dim_col2:
+            solar_dim_W = st.number_input("Width (W)", 1.0, 1000.0, 150.0, 10.0, "%.1f", key="solar_w")
+
+        solar_irradiance_val = st.number_input("Solar Irradiance (G, W/m²)", min_value=0, value=1000, step=50, help="Standard value is ~1000 W/m² for direct sun at noon.")
+
+        st.subheader("Governing Equation")
+        st.latex(r"Q_{solar} = \alpha \cdot A_{proj} \cdot G_{solar}")
+
+    with col_solar_result:
+        st.subheader("Evaluation Result")
+        selected_solar_props = solar_absorptivity_materials[solar_material_name]
+        solar_results = calculate_solar_gain(solar_dim_L, solar_dim_W, selected_solar_props, solar_irradiance_val)
+        
+        if solar_results.get("error"):
+            st.error(f"**Error:** {solar_results['error']}")
+        else:
+            st.metric(
+                label="☀️ Absorbed Solar Heat Gain",
+                value=f"{solar_results['solar_gain']:.2f} W",
+                help="This is the additional heat load on the product due to direct sun exposure. This value should be considered part of the total power budget for outdoor products."
+            )
