@@ -1,9 +1,8 @@
-# Viper Thermal Suite v11.1
+# Viper Thermal Suite v12.0
 # Author: Gemini
 # Description: The successor to the Cobra series, a branded thermal analysis tool for the Sercomm Team.
 # Version Notes: 
-# - Translated all UI elements to English.
-# - Includes the "Other" option for custom solar absorptivity.
+# - Replaced L/W inputs for solar gain with a direct "Projected Surface Area" input to align with CAD workflows.
 
 import streamlit as st
 import pandas as pd
@@ -72,12 +71,12 @@ def calculate_forced_convection(power_q, T_in, T_out):
     volume_flow_rate_cfm = volume_flow_rate_m3s * M3S_TO_CFM_CONVERSION # CFM
     return {"cfm": volume_flow_rate_cfm, "error": None}
 
-def calculate_solar_gain(L, W, alpha, solar_irradiance):
-    """Calculates the absorbed solar heat based on Q = α * A_proj * G."""
-    if L <= 0 or W <= 0: return {"error": "Product Length and Width must be greater than zero."}
+def calculate_solar_gain(projected_area_mm2, alpha, solar_irradiance):
+    """Calculates the absorbed solar heat based on a user-provided area."""
+    if projected_area_mm2 <= 0: return {"error": "Projected Surface Area must be greater than zero."}
     try:
-        projected_area = (L / 1000) * (W / 1000) # m^2
-        solar_gain = alpha * projected_area * solar_irradiance
+        projected_area_m2 = projected_area_mm2 / 1_000_000 # Convert mm^2 to m^2
+        solar_gain = alpha * projected_area_m2 * solar_irradiance
         return {"solar_gain": solar_gain, "error": None}
     except Exception as e: return { "error": f"An unexpected error occurred during calculation: {e}" }
 
@@ -193,7 +192,6 @@ with tab_solar:
     with col_solar_input:
         st.subheader("Input Parameters")
         
-        # --- ENHANCEMENT: Custom Absorptivity ---
         solar_material_name = st.selectbox(
             "1. Enclosure Color/Finish",
             options=list(solar_absorptivity_materials.keys()) + ["Other..."],
@@ -210,21 +208,24 @@ with tab_solar:
             alpha_val = solar_absorptivity_materials[solar_material_name]["absorptivity"]
             st.number_input("Corresponding Absorptivity (α)", value=alpha_val, disabled=True)
 
-        st.markdown("**Projected Area Dimensions (mm)**")
-        solar_dim_col1, solar_dim_col2 = st.columns(2)
-        with solar_dim_col1:
-            solar_dim_L = st.number_input("Length (L)", 1.0, 1000.0, 200.0, 10.0, "%.1f", key="solar_l")
-        with solar_dim_col2:
-            solar_dim_W = st.number_input("Width (W)", 1.0, 1000.0, 150.0, 10.0, "%.1f", key="solar_w")
+        # --- UI CHANGE: Replaced L/W with direct area input ---
+        projected_area_mm2 = st.number_input(
+            "2. Projected Surface Area (mm²)",
+            min_value=0.0,
+            value=30000.0, # Default to 200mm * 150mm
+            step=1000.0,
+            format="%.1f",
+            help="Enter the exact surface area exposed to the sun, as measured in your CAD software."
+        )
 
-        solar_irradiance_val = st.number_input("Solar Irradiance (G, W/m²)", min_value=0, value=1000, step=50, help="Standard value is ~1000 W/m² for direct sun at noon.")
+        solar_irradiance_val = st.number_input("3. Solar Irradiance (G, W/m²)", min_value=0, value=1000, step=50, help="Standard value is ~1000 W/m² for direct sun at noon.")
 
         st.subheader("Governing Equation")
         st.latex(r"Q_{solar} = \alpha \cdot A_{proj} \cdot G_{solar}")
 
     with col_solar_result:
         st.subheader("Evaluation Result")
-        solar_results = calculate_solar_gain(solar_dim_L, solar_dim_W, alpha_val, solar_irradiance_val)
+        solar_results = calculate_solar_gain(projected_area_mm2, alpha_val, solar_irradiance_val)
         
         if solar_results.get("error"):
             st.error(f"**Error:** {solar_results['error']}")
