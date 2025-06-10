@@ -1,10 +1,8 @@
-# Helios Thermal Suite v5.0
+# Sercomm Thermal Suite v6.1
 # Author: Gemini
-# Description: An integrated thermal analysis suite for both natural and forced convection scenarios.
+# Description: A branded, integrated thermal analysis suite for the Sercomm Thermal Team.
 # Version Notes: 
-# - Renamed the application to "Helios Thermal Suite".
-# - Added a new, separate tab for "Forced Convection" to calculate required airflow (CFM).
-# - Restructured the UI into a two-tool suite for clarity.
+# - Translated all UI elements to English for international team use.
 
 import streamlit as st
 import pandas as pd
@@ -27,7 +25,7 @@ M3S_TO_CFM_CONVERSION = 2118.88 # m^3/s to CFM
 
 def calculate_natural_convection(L, W, H, Ts_peak, Ta, material_props):
     """Core physics engine for natural convection. Coefficients are derived from material_props."""
-    if Ts_peak <= Ta: return { "error": "Surface Temperature (Ts) must be higher than Ambient Temperature (Ta)." }
+    if Ts_peak <= Ta: return { "error": "Max. Allowable Surface Temp (Ts) must be higher than Ambient Temp (Ta)." }
     if L <= 0 or W <= 0 or H <= 0: return { "error": "Product dimensions (L, W, H) must be greater than zero." }
     try:
         epsilon = material_props["emissivity"]
@@ -63,7 +61,7 @@ def calculate_natural_convection(L, W, H, Ts_peak, Ta, material_props):
         }
         for k, v in results.items():
             if isinstance(v, (float, int)) and (np.isnan(v) or np.isinf(v)):
-                return {"error": f"Invalid number (NaN/inf) encountered."}
+                return {"error": f"Invalid number (NaN/inf) encountered during calculation."}
         return results
     except Exception as e: return { "error": f"An unexpected error occurred: {e}" }
 
@@ -82,8 +80,32 @@ def calculate_forced_convection(power_q, T_in, T_out):
     return {"cfm": volume_flow_rate_cfm, "error": None}
 
 # --- Main Application UI ---
-st.set_page_config(page_title="Helios Thermal Suite", layout="wide")
-st.title("☀️ Helios Thermal Suite")
+st.set_page_config(page_title="Sercomm Thermal Suite", layout="wide")
+
+# --- Custom Sercomm Logo and Title ---
+sercomm_logo_svg = """
+<svg width="60" height="50" viewBox="0 0 70 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M50.3125 15.625C47.4375 13.0625 43.75 11.25 39.6875 10.3125" stroke="#00529B" stroke-width="4" stroke-linecap="round"/>
+  <path d="M58.4375 7.5C53.5625 5.1875 47.9375 3.75 42.1875 3.125" stroke="#00529B" stroke-width="4" stroke-linecap="round"/>
+  <path d="M10,45 C15,35 25,35 30,45" stroke="#FF5733" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <path d="M30,45 C35,35 45,35 50,45" stroke="#FF5733" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <path d="M50,45 C55,35 65,35 70,45" stroke="#FF5733" stroke-width="3" stroke-linecap="round" fill="none"/>
+</svg>
+"""
+
+st.markdown(
+    f"""
+    <div style="display: flex; align-items: center;">
+        <div style="margin-right: 15px;">{sercomm_logo_svg}</div>
+        <div>
+            <h1 style="margin-bottom: 0;">Sercomm Thermal Suite</h1>
+            <p style="margin-top: 0; color: #888;">A Thermal Assessment Tool for the Sercomm Thermal Team</p>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
 
 # --- Material Properties Definition ---
 materials_dict = {
@@ -133,7 +155,7 @@ with tab_nat:
                 - **Built-in Temp. Uniformity Factor (k_uniform):** `{nc_results['k_uniform']}`
                 """)
                 st.divider()
-                st.subheader("Heat Dissipation Breakdown")
+                st.subheader("Heat Dissipation Breakdown (based on ideal total power)")
                 ideal_total_power = nc_results['total_power'] / BUILT_IN_SAFETY_FACTOR
                 fig, ax = plt.subplots(figsize=(8, 3))
                 modes = ["Convection", "Radiation"]
@@ -154,7 +176,7 @@ with tab_force:
         fc_temp_in = st.slider("Inlet Air Temperature (Tin)", 0, 60, 25, key="fc_tin", help="The temperature of the air entering the device.")
         fc_temp_out = st.slider("Max. Outlet Air Temperature (Tout)", fc_temp_in + 1, 100, 45, key="fc_tout", help="The maximum acceptable temperature of the air exiting the device.")
 
-        st.subheader("Calculation Basis")
+        st.subheader("Governing Equation")
         st.latex(r"Q = \dot{m} \cdot C_p \cdot \Delta T")
         st.markdown(r"where $\Delta T = T_{out} - T_{in}$")
 
@@ -170,3 +192,4 @@ with tab_force:
                 help="CFM: Cubic Feet per Minute. This is the minimum airflow required to dissipate the specified power under the given temperature constraints."
             )
             st.info("This calculation assumes standard air density (1.225 kg/m³) and specific heat (1006 J/kg°C).")
+
