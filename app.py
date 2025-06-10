@@ -1,11 +1,8 @@
-# Sercomm Tool Suite v10.0 (featuring Viper & Cobra)
+# Sercomm Tool Suite v10.1 (featuring Viper & Cobra)
 # Author: Gemini
 # Description: A unified platform with professional reporting features for Cobra.
 # Version Notes: 
-# - Implemented tabbed results for Cobra (Conclusions, Table, Chart).
-# - Added ΔT comparison selection and calculation logic.
-# - Implemented high-fidelity, styled PNG/Excel table/chart downloads.
-# - Formatted all temperature values to two decimal places.
+# - Fixed a SyntaxError in the cobra_pre_study function related to multiple assignments.
 # - Ensured full English translation.
 
 import streamlit as st
@@ -143,7 +140,10 @@ def cobra_pre_study(uploaded_file):
             clean_base = clean_series_header(raw_name)
             count = counts.get(clean_base, 0)
             final_name = f"{clean_base}_{count}" if count > 0 else clean_base
-            counts[clean_base], cleaned_names.append(final_name), cleaned_to_raw_map[final_name] = count + 1, final_name, raw_name
+            # --- SYNTAX ERROR FIX ---
+            counts[clean_base] = count + 1
+            cleaned_names.append(final_name)
+            cleaned_to_raw_map[final_name] = raw_name
         
         data_start_row = header_row_idx + 1
         df_components = pd.read_excel(xls, sheet_name=target_sheet, header=None, usecols=[DATA_COL_COMPONENT_IDX], skiprows=data_start_row, dtype=str)
@@ -376,7 +376,9 @@ def render_cobra_ui():
                 btn_col2.download_button("Download as Formatted Excel", data=excel_buf, file_name="cobra_results.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
             with res_tab3: 
                 df_chart_data = results.get("table")[results.get("selected_series", [])].copy()
-                for col in df_chart_data.columns: df_chart_data[col] = pd.to_numeric(df_chart_data[col], errors='coerce')
+                for col in df_chart_data.columns: 
+                    if col not in ['Spec (°C)', 'Result']:
+                        df_chart_data[col] = pd.to_numeric(df_chart_data[col], errors='coerce')
                 
                 fig_chart, ax = plt.subplots(figsize=(max(10, len(df_chart_data.index) * 0.8), 6))
                 df_chart_data.plot(kind='bar', ax=ax, width=0.8); ax.set_ylabel("Temperature (°C)"); ax.set_title("Key IC Temperature Comparison"); plt.xticks(rotation=45, ha='right'); plt.grid(axis='y', linestyle='--', alpha=0.7); plt.tight_layout()
@@ -386,8 +388,30 @@ def render_cobra_ui():
                 st.download_button("Download Chart as PNG", data=chart_buf, file_name="cobra_chart.png", mime="image/png", use_container_width=True)
 
 def render_structured_conclusions(conclusion_data):
-    # ... (conclusion rendering logic remains the same) ...
-    st.write("Conclusions...")
+    st.subheader("Executive Summary")
+    failed_ics = [item['component'] for item in conclusion_data if item['result'] == 'FAIL']
+    if failed_ics:
+        st.error(f"**FAIL:** The following components exceeded thermal limits: {', '.join(failed_ics)}")
+    else:
+        st.success("**PASS:** All selected Key ICs are within their specified thermal limits.")
+    
+    st.divider()
+    st.subheader("Detailed Component Analysis")
+
+    for item in conclusion_data:
+        with st.expander(f"**{item['component']}** - Result: {item['result']}"):
+            spec_val = f"{item['spec']:.2f}°C" if pd.notna(item['spec']) else "N/A"
+            st.markdown(f"**Specification Type:** `{item['spec_type']}`")
+            st.markdown(f"**Calculated Spec Limit:** `{spec_val}`")
+            if item.get('spec_inputs') != 'N/A':
+                st.markdown(f"**Specification Inputs:** `{item['spec_inputs']}`")
+            
+            st.write("**Performance per Configuration:**")
+            
+            series_results_df = pd.DataFrame(item['series_results'])
+            series_results_df['temp'] = series_results_df['temp'].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+            st.dataframe(series_results_df.rename(columns={'series': 'Configuration', 'temp': 'Temp (°C)', 'result': 'Result'}), use_container_width=True, hide_index=True)
+
 
 # --- ======================================================================= ---
 # ---                           MAIN APP ROUTER                             ---
