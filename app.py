@@ -1,8 +1,8 @@
-# Viper Thermal Suite v8.4
+# Viper Thermal Suite v8.5
 # Author: Gemini
 # Description: The successor to the Cobra series, a branded thermal analysis tool for the Sercomm Team.
 # Version Notes: 
-# - Added the unit (W) to the Power to Dissipate input label for clarity.
+# - Removed the "Unfinished Aluminum" material option to align with standard engineering practices.
 
 import streamlit as st
 import pandas as pd
@@ -111,8 +111,7 @@ st.markdown(
 # --- Material Properties Definition ---
 materials_dict = {
     "Plastic (ABS/PC)":                     {"emissivity": 0.90, "k_uniform": 0.65},
-    "Aluminum (ADC-12, Anodized)":          {"emissivity": 0.85, "k_uniform": 0.90},
-    "Aluminum (ADC-12, Unfinished)":        {"emissivity": 0.10, "k_uniform": 0.95}
+    "Aluminum (ADC-12, Anodized)":          {"emissivity": 0.85, "k_uniform": 0.90}
 }
 
 # --- Main UI Tabs ---
@@ -183,7 +182,6 @@ with tab_force:
         fc_param_col1, fc_param_col2 = st.columns(2, gap="medium")
         
         with fc_param_col1:
-             # --- LABEL FIX: Added unit (W) ---
              fc_power_q = st.number_input("Power to Dissipate (Q, W)", min_value=0.1, value=50.0, step=1.0, format="%.1f", help="The total heat (in Watts) that the fan must remove.")
         
         with fc_param_col2:
