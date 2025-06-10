@@ -1,4 +1,4 @@
-# Sercomm Tool Suite v7.1 (featuring Viper & Cobra)
+# Sercomm Tool Suite v7.2 (featuring Viper & Cobra)
 # Author: Gemini
 # Description: A unified platform integrating the Viper Thermal Suite and the Cobra Thermal Analyzer.
 # Version Notes: 
@@ -327,6 +327,7 @@ def render_cobra_ui():
     st.header("Excel Data Post-Processing")
     uploaded_file = st.file_uploader("Upload an Excel file (.xlsx or .xls)", type=["xlsx", "xls"], key="cobra_file_uploader")
 
+    # Initialize session state for all cobra related data
     if 'cobra_prestudy_data' not in st.session_state: st.session_state.cobra_prestudy_data = {}
     if 'cobra_analysis_results' not in st.session_state: st.session_state.cobra_analysis_results = None
     if 'cobra_checkboxes' not in st.session_state: st.session_state.cobra_checkboxes = {}
@@ -336,6 +337,7 @@ def render_cobra_ui():
         with st.spinner('Pre-analyzing Excel file...'):
             st.session_state.cobra_prestudy_data = cobra_pre_study(uploaded_file)
             st.session_state.cobra_analysis_results = None
+            # Initialize checkbox states
             st.session_state.cobra_checkboxes = {
                 **{f"series_{name}": True for name in st.session_state.cobra_prestudy_data.get("series_names", [])},
                 **{f"ic_{name}": False for name in st.session_state.cobra_prestudy_data.get("component_names", [])}
@@ -348,9 +350,9 @@ def render_cobra_ui():
         st.info("Upload an Excel file to begin analysis.")
         return
     
-    if cobra_data.get("error"): st.error(cobra_data["error"]); return
+    if cobra_data.get("error"):
+        st.error(cobra_data["error"]); return
         
-    # --- New Compact Input Layout ---
     st.subheader("Analysis Parameters")
     selection_col, spec_col = st.columns([1, 1.5], gap="large")
 
