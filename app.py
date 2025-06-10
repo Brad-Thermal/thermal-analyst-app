@@ -1,10 +1,9 @@
-# Viper Thermal Suite v9.3
+# Viper Thermal Suite v9.4
 # Author: Gemini
 # Description: The successor to the Cobra series, a branded thermal analysis tool for the Sercomm Team.
 # Version Notes: 
-# - Added a user input for "Solar Irradiance" which appears when the solar effects toggle is on.
-# - Refined the layout to group all solar-related inputs cleanly.
-# - Ensured all UI elements are in English.
+# - Integrated the main result and the thermal budget breakdown into a single, cohesive block to eliminate redundancy.
+# - The result display now logically shows the calculation flow.
 
 import streamlit as st
 import pandas as pd
@@ -181,17 +180,23 @@ with tab_nat:
             internal_power_budget = total_dissipatable_power - solar_gain
 
             if include_solar:
-                st.metric(
-                    label="✅ Max. Internal Dissipatable Power",
-                    value=f"{internal_power_budget:.2f} W",
-                    help="This is the power your internal electronics can generate after accounting for the sun's heat."
-                )
-                st.markdown("---")
-                st.markdown("##### Thermal Budget Breakdown")
-                st.markdown(f"☀️ **Solar Heat Gain:** `{solar_gain:.2f} W`")
-                st.markdown(f"🔌 **Internal Power Budget:** `{internal_power_budget:.2f} W`")
-                st.markdown(f"---")
-                st.markdown(f"**Total Dissipated by Enclosure:** `{total_dissipatable_power:.2f} W`")
+                # --- INTEGRATED RESULT DISPLAY ---
+                st.markdown("##### Thermal Budget Calculation")
+                col1, col2 = st.columns([2,1])
+                with col1:
+                    st.write("Total Dissipatable Power by Enclosure")
+                    st.write("(-) Solar Heat Gain")
+                    st.markdown('<hr style="margin:0.5rem 0; border-color: #555;">', unsafe_allow_html=True)
+                    st.write("**(=) Max. Internal Dissipatable Power**")
+                with col2:
+                    st.write(f"`{total_dissipatable_power:.2f} W`")
+                    st.write(f"`{solar_gain:.2f} W`")
+                    st.markdown('<hr style="margin:0.5rem 0; border-color: #555;">', unsafe_allow_html=True)
+                    st.write(f"**`{internal_power_budget:.2f} W`**")
+                
+                if internal_power_budget < 0:
+                    st.error("The solar heat gain is greater than the enclosure's total dissipation capability. The internal temperature will exceed the specified limit.", icon="🔥")
+
             else:
                  st.metric(label="✅ Max. Dissipatable Power", value=f"{total_dissipatable_power:.2f} W")
                  st.info("This result includes built-in material uniformity and a fixed engineering safety factor (0.9).")
