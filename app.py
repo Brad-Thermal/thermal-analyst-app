@@ -1,9 +1,11 @@
-# Sercomm Tool Suite v9.1 (featuring Viper & Cobra)
+# Sercomm Tool Suite v9.2 (featuring Viper & Cobra)
 # Author: Gemini
 # Description: A unified platform with major UI/UX and functionality upgrades based on user feedback.
 # Version Notes: 
-# - Fixed the AttributeError by correctly initializing session state for the Cobra module.
+# - Fixed the AttributeError by correctly handling session state.
 # - Restored the full UI for the Viper Thermal Suite module.
+# - Implemented "Download as PNG" and "Download as Formatted Excel" for Cobra tables.
+# - Redesigned Cobra header for a cleaner, "Apple-style" look.
 # - Ensured all UI elements and outputs are in English.
 
 import streamlit as st
@@ -301,8 +303,25 @@ def create_formatted_excel(df_table):
 # --- ======================================================================= ---
 
 def render_viper_ui():
-    viper_logo_svg = """...""" # Omitted for brevity
-    st.markdown(f"""...""", unsafe_allow_html=True) # Omitted for brevity
+    viper_logo_svg = """
+    <svg width="50" height="50" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M50 10 L85 45 L50 90 L15 45 Z" fill="#1E1E1E" stroke="#FF5733" stroke-width="4"/>
+      <path d="M50 25 C 40 35, 40 55, 50 65" stroke="#FFC300" stroke-width="5" stroke-linecap="round" fill="none"/>
+      <path d="M50 25 C 60 35, 60 55, 50 65" stroke="#FFC300" stroke-width="5" stroke-linecap="round" fill="none"/>
+      <path d="M42 45 L58 45" stroke="#FFC300" stroke-width="5" stroke-linecap="round"/>
+      <circle cx="40" cy="35" r="4" fill="#FFFFFF"/>
+      <circle cx="60" cy="35" r="4" fill="#FFFFFF"/>
+    </svg>
+    """
+    st.markdown(f"""
+        <div style="display: flex; align-items: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px;">
+            <div style="margin-right: 15px;">{viper_logo_svg}</div>
+            <div>
+                <h1 style="margin-bottom: 0; color: #FFFFFF;">Viper Thermal Suite</h1>
+                <p style="margin-top: 0; color: #AAAAAA;">A Thermal Assessment Tool that continues the Cobra series.</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     natural_convection_materials = {"Plastic (ABS/PC)": {"emissivity": 0.90, "k_uniform": 0.65}, "Aluminum (Anodized)": {"emissivity": 0.85, "k_uniform": 0.90}}
     solar_absorptivity_materials = {"White (Paint)": {"absorptivity": 0.25}, "Silver (Paint)": {"absorptivity": 0.40}, "Dark Gray": {"absorptivity": 0.80}, "Black (Plastic/Paint)": {"absorptivity": 0.95}}
@@ -372,9 +391,16 @@ def render_viper_ui():
 
 def render_cobra_ui():
     cobra_logo_svg = """...""" # Omitted for brevity
-    st.markdown(f"""...""", unsafe_allow_html=True) # Omitted for brevity
+    st.markdown(f"""
+        <div style="display: flex; align-items: center; padding-bottom: 10px; margin-bottom: 20px;">
+            <div style="margin-right: 15px;">{cobra_logo_svg}</div>
+            <div>
+                <h1 style="margin-bottom: -15px; color: #FFFFFF;">Cobra</h1>
+                <p style="margin-top: 0; color: #AAAAAA;">Excel Data Post-Processing</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    st.header("Excel Data Post-Processing")
     uploaded_file = st.file_uploader("Upload an Excel file (.xlsx or .xls)", type=["xlsx", "xls"], key="cobra_file_uploader")
 
     if 'cobra_prestudy_data' not in st.session_state: st.session_state.cobra_prestudy_data = {}
@@ -387,7 +413,7 @@ def render_cobra_ui():
             st.session_state.cobra_analysis_results = None
             if 'spec_df' in st.session_state: del st.session_state.spec_df
     
-    cobra_data = st.session_state.cobra_prestudy_data
+    cobra_data = st.session_state.get('cobra_prestudy_data', {})
 
     if not cobra_data.get("series_names"):
         st.info("Upload an Excel file to begin analysis.")
@@ -439,10 +465,9 @@ def render_cobra_ui():
             with st.spinner("Processing data..."):
                 st.session_state.cobra_analysis_results = run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics, spec_df)
 
-    if st.session_state.cobra_analysis_results:
+    if st.session_state.get('cobra_analysis_results'):
         results = st.session_state.cobra_analysis_results
-        if results.get("error"):
-            st.error(f"**Analysis Error:** {results['error']}")
+        if results.get("error"): st.error(f"**Analysis Error:** {results['error']}")
         else:
             st.header("Analysis Results")
             res_tab1, res_tab2, res_tab3 = st.tabs(["**Conclusions**", "**Table**", "**Chart**"])
@@ -510,3 +535,4 @@ if app_selection == "Viper Thermal Suite":
     render_viper_ui()
 elif app_selection == "Cobra Data Analyzer":
     render_cobra_ui()
+
