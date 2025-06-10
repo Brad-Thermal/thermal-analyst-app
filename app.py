@@ -20,7 +20,7 @@ BUILT_IN_SAFETY_FACTOR = 0.9 # Fixed safety factor for natural convection
 AIR_DENSITY_RHO = 1.225 # kg/m^3
 AIR_SPECIFIC_HEAT_CP = 1006 # J/kg°C
 M3S_TO_CFM_CONVERSION = 2118.88 # m^3/s to CFM
-
+<p style="margin-top: 0; color: #AAAAAA;">A Thermal Assessment Tool for the Sercomm Thermal Team</p>
 # --- Calculation Engines ---
 
 def calculate_natural_convection(L, W, H, Ts_peak, Ta, material_props):
