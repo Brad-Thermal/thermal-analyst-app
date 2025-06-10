@@ -1,10 +1,9 @@
-# Sercomm Tool Suite v11.0 (featuring Viper & Cobra)
+# Sercomm Tool Suite v11.1 (featuring Viper & Cobra)
 # Author: Gemini
 # Description: A unified platform with professional reporting features for Cobra.
 # Version Notes: 
-# - BUG FIX: Restored the complete UI code for the Viper Thermal Suite module.
-# - Confirmed all reporting features (PNG/Excel download) are functional.
-# - Ensured full English translation across the entire application.
+# - Translated all UI elements back to English.
+# - Maintained all recent features for both modules.
 
 import streamlit as st
 import pandas as pd
@@ -13,6 +12,7 @@ import matplotlib.pyplot as plt
 import logging
 import re
 import io
+import textwrap
 
 # --- ======================================================================= ---
 # ---                             SHARED CONSTANTS                            ---
@@ -21,7 +21,7 @@ import io
 # Suppress specific Streamlit warnings
 logging.getLogger('streamlit.runtime.scriptrunner.script_run_context').setLevel(logging.ERROR)
 
-# Constants for Viper & Cobra
+# Constants
 STEFAN_BOLTZMANN_CONST = 5.67e-8
 EPSILON = 1e-9
 BUILT_IN_SAFETY_FACTOR = 0.9
@@ -173,8 +173,8 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
             match_indices = component_names[component_names == ic].index
             if not match_indices.empty:
                 idx = match_indices[0]
-                temps = {s_name: analysis_data[s_name].loc[idx] for s_name in selected_series}
-                key_ic_data[ic] = temps
+                temps = {f"{s_name} (°C)": analysis_data[s_name].loc[idx] for s_name in selected_series}
+                key_ic_data[ic] = {s_name: analysis_data[s_name].loc[idx] for s_name in selected_series}
                 table_data.append({"Component": ic, **temps})
 
         if not table_data:
@@ -208,7 +208,7 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
             conclusion_data.append({"component": ic, **ic_result})
 
         # Format temperature values to two decimal places for display
-        for col in selected_series:
+        for col in df_table.columns:
             df_table[col] = df_table[col].map(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
 
         df_table['Spec (°C)'] = [f"{results.get(ic, {}).get('spec', 'N/A'):.2f}" if pd.notna(results.get(ic, {}).get('spec')) else 'N/A' for ic in df_table.index]
@@ -218,9 +218,10 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
         for pair in delta_pairs:
             baseline, compare = pair['baseline'], pair['compare']
             if baseline != NO_COMPARISON_LABEL and compare != NO_COMPARISON_LABEL and baseline != compare:
-                temp_b = pd.to_numeric(df_table[baseline], errors='coerce')
-                temp_c = pd.to_numeric(df_table[compare], errors='coerce')
-                delta_col_name = f"{DELTA_SYMBOL}T ({baseline} - {compare})"
+                baseline_col, compare_col = f"{baseline} (°C)", f"{compare} (°C)"
+                temp_b = pd.to_numeric(df_table[baseline_col], errors='coerce')
+                temp_c = pd.to_numeric(df_table[compare_col], errors='coerce')
+                delta_col_name = f"{DELTA_SYMBOL}T ({baseline} - {compare}) (°C)"
                 df_table[delta_col_name] = (temp_b - temp_c).map(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
         
         return {"table": df_table, "conclusion_data": conclusion_data, "selected_series": selected_series}
@@ -234,13 +235,20 @@ def generate_formatted_table_image(df_table):
     if df_table.empty:
         fig, ax = plt.subplots(figsize=(8, 1)); ax.text(0.5, 0.5, "No data to display.", ha="center", va="center"); ax.axis('off'); return fig
     
-    fig, ax = plt.subplots(figsize=(12, 1 + len(df_table) * 0.5))
+    # Auto-adjust figure size
+    num_rows, num_cols = df_table.shape
+    fig_height = 1 + num_rows * 0.5
+    fig_width = 3 + num_cols * 1.8 
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
     ax.axis('off'); ax.axis('tight')
     
     cell_text = df_table.reset_index().values.tolist()
     column_labels = ["Component"] + df_table.columns.tolist()
 
-    table = ax.table(cellText=cell_text, colLabels=column_labels, loc='center', cellLoc='center')
+    # Wrap headers
+    wrapped_column_labels = [textwrap.fill(label, width=15) for label in column_labels]
+
+    table = ax.table(cellText=cell_text, colLabels=wrapped_column_labels, loc='center', cellLoc='center')
     table.auto_set_font_size(False); table.set_fontsize(10)
     
     for (row, col), cell in table.get_celld().items():
@@ -261,6 +269,7 @@ def create_formatted_excel(df_table):
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         sheet_name = 'ThermalTableData'
         df_table_to_export = df_table.copy()
+        
         # Convert numeric-like strings back to numbers for Excel
         for col in df_table_to_export.columns:
             if col not in ['Result', 'Spec (°C)']:
@@ -282,7 +291,7 @@ def create_formatted_excel(df_table):
         worksheet.conditional_format(f'{result_col_letter}2:{result_col_letter}{len(df_table)+1}', {'type': 'cell', 'criteria': '==', 'value': '"FAIL"', 'format': fail_format})
         
         worksheet.set_column('A:A', 25)
-        worksheet.set_column('B:Z', 15)
+        worksheet.set_column('B:Z', 18)
     output.seek(0)
     return output
 
@@ -296,8 +305,8 @@ def render_viper_ui():
         <div style="display: flex; align-items: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px;">
             <div style="margin-right: 15px;">{viper_logo_svg}</div>
             <div>
-                <h1 style="margin-bottom: 0; color: #FFFFFF;">Viper Thermal Suite</h1>
-                <p style="margin-top: 0; color: #AAAAAA;">A Thermal Assessment Tool that continues the Cobra series.</p>
+                <h1 style="margin-bottom: 0; color: #FFFFFF;">Viper</h1>
+                <p style="margin-top: 0; color: #AAAAAA;">Risk Analysis</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -375,7 +384,7 @@ def render_cobra_ui():
             <div style="margin-right: 15px;">{cobra_logo_svg}</div>
             <div>
                 <h1 style="margin-bottom: -15px; color: #FFFFFF;">Cobra</h1>
-                <p style="margin-top: 0; color: #AAAAAA;">Excel Data Post-Processing</p>
+                <p style="margin-top: 0; color: #AAAAAA;">Data Transformation</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -420,14 +429,15 @@ def render_cobra_ui():
         
         for i, pair in enumerate(st.session_state.delta_t_pairs):
             pair_cols = st.columns([2, 2, 1])
-            pair['baseline'] = pair_cols[0].selectbox(f"Baseline:", [NO_COMPARISON_LABEL] + selected_series, key=f"delta_b_{i}", index=pair.get('b_idx', 0))
-            pair['compare'] = pair_cols[1].selectbox(f"Compare to:", [NO_COMPARISON_LABEL] + selected_series, key=f"delta_c_{i}", index=pair.get('c_idx', 0))
+            baseline = pair_cols[0].selectbox(f"Baseline:", [NO_COMPARISON_LABEL] + selected_series, key=f"delta_b_{i}")
+            compare = pair_cols[1].selectbox(f"Compare to:", [NO_COMPARISON_LABEL] + selected_series, key=f"delta_c_{i}")
             if pair_cols[2].button("Remove", key=f"remove_delta_{i}"):
                 st.session_state.delta_t_pairs.pop(i)
                 st.rerun()
+            st.session_state.delta_t_pairs[i] = {'baseline': baseline, 'compare': compare}
 
         if st.button("Add ΔT Pair"):
-            st.session_state.delta_t_pairs.append({'baseline': NO_COMPARISON_LABEL, 'compare': NO_COMPARISON_LABEL, 'b_idx': 0, 'c_idx': 0})
+            st.session_state.delta_t_pairs.append({'baseline': NO_COMPARISON_LABEL, 'compare': NO_COMPARISON_LABEL})
             st.rerun()
 
     spec_df = None
@@ -521,12 +531,13 @@ def render_structured_conclusions(conclusion_data):
 # ---                           MAIN APP ROUTER                             ---
 # --- ======================================================================= ---
 st.set_page_config(page_title="Sercomm Tool Suite", layout="wide")
-st.sidebar.title("Sercomm Engineering Suite")
-app_selection = st.sidebar.radio("Select a Tool:", ("Viper Thermal Suite", "Cobra Data Analyzer"))
+st.sidebar.title("Sercomm Thermal Engineering")
+app_selection = st.sidebar.radio("Select a Tool:", ("Viper - Risk analysis", "Cobra - Data transformation"))
 st.sidebar.markdown("---")
 st.sidebar.info("A unified platform for Sercomm's engineering analysis tools.")
 
-if app_selection == "Viper Thermal Suite":
+if app_selection == "Viper - Risk analysis":
     render_viper_ui()
-elif app_selection == "Cobra Data Analyzer":
+elif app_selection == "Cobra - Data transformation":
     render_cobra_ui()
+
