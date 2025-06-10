@@ -1,11 +1,11 @@
-# Sercomm Tool Suite v11.0 (featuring Viper & Cobra)
+# Sercomm Tool Suite v12.0
 # Author: Gemini
-# Description: A unified platform with professional reporting features for Cobra.
+# Description: A unified platform with professional reporting features.
 # Version Notes: 
+# - Overhauled Cobra's table generation with dynamic column sizing and header wrapping.
+# - Added (°C) units to all applicable table headers.
 # - Rebranded the suite and modules per user request.
-# - Implemented dynamic header wrapping and column sizing for Cobra tables.
-# - Added (°C) unit to all temperature columns.
-# - Implemented high-fidelity, styled PNG/Excel table/chart downloads.
+# - Restored the complete UI for the Viper Thermal Suite module.
 # - Ensured full English translation.
 
 import streamlit as st
@@ -21,17 +21,14 @@ import textwrap
 # ---                             SHARED CONSTANTS                            ---
 # --- ======================================================================= ---
 
-# Suppress specific Streamlit warnings
 logging.getLogger('streamlit.runtime.scriptrunner.script_run_context').setLevel(logging.ERROR)
 
-# Constants
 STEFAN_BOLTZMANN_CONST = 5.67e-8
 EPSILON = 1e-9
 BUILT_IN_SAFETY_FACTOR = 0.9
 AIR_DENSITY_RHO = 1.225
 AIR_SPECIFIC_HEAT_CP = 1006
 M3S_TO_CFM_CONVERSION = 2118.88
-SOLAR_IRRADIANCE = 1000
 DATA_COL_COMPONENT_IDX = 1
 DATA_COL_FIRST_SERIES_TEMP_IDX = 2
 SPEC_TYPE_TC_CALC = "Tc"
@@ -210,14 +207,12 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
             results[ic] = ic_result
             conclusion_data.append({"component": ic, **ic_result})
 
-        # Format temperature values to two decimal places for display
         for col in df_table.columns:
             df_table[col] = df_table[col].map(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
 
         df_table['Spec (°C)'] = [f"{results.get(ic, {}).get('spec', 'N/A'):.2f}" if pd.notna(results.get(ic, {}).get('spec')) else 'N/A' for ic in df_table.index]
         df_table['Result'] = [results.get(ic, {}).get('result', 'N/A') for ic in df_table.index]
 
-        # Delta T Calculation for all valid pairs
         for pair in delta_pairs:
             baseline, compare = pair['baseline'], pair['compare']
             if baseline != NO_COMPARISON_LABEL and compare != NO_COMPARISON_LABEL and baseline != compare:
@@ -227,7 +222,7 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
                 delta_col_name = f"{DELTA_SYMBOL}T ({baseline} - {compare}) (°C)"
                 df_table[delta_col_name] = (temp_b - temp_c).map(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
         
-        return {"table": df_table, "conclusion_data": conclusion_data, "selected_series": selected_series}
+        return {"table": df_table, "conclusion_data": conclusion_data}
     except Exception as e: return {"error": f"An error occurred during analysis: {e}"}
 
 # --- ======================================================================= ---
@@ -238,32 +233,33 @@ def generate_formatted_table_image(df_table):
     if df_table.empty:
         fig, ax = plt.subplots(figsize=(8, 1)); ax.text(0.5, 0.5, "No data to display.", ha="center", va="center"); ax.axis('off'); return fig
     
-    # Auto-adjust figure size
-    num_rows, num_cols = df_table.shape
-    fig_height = 1 + num_rows * 0.5
-    fig_width = 3 + num_cols * 1.8 
-    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
-    ax.axis('off'); ax.axis('tight')
+    df_plot = df_table.reset_index()
+    num_rows, num_cols = df_plot.shape
     
-    cell_text = df_table.reset_index().values.tolist()
-    column_labels = ["Component"] + df_table.columns.tolist()
+    fig_height = 0.5 + num_rows * 0.4
+    
+    col_widths = [max(len(str(s)) for s in df_plot[col].tolist() + [col]) for col in df_plot.columns]
+    fig_width = sum(col_widths) * 0.15
+    fig_width = max(10, fig_width)
 
-    # Wrap headers
-    wrapped_column_labels = [textwrap.fill(label, width=15) for label in column_labels]
-
-    table = ax.table(cellText=cell_text, colLabels=wrapped_column_labels, loc='center', cellLoc='center')
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+    ax.axis('off')
+    
+    table = ax.table(cellText=df_plot.values, colLabels=df_plot.columns, loc='center', cellLoc='center')
     table.auto_set_font_size(False); table.set_fontsize(10)
     
     for (row, col), cell in table.get_celld().items():
         cell.set_edgecolor('black')
         if row == 0:
             cell.set_facecolor('#606060'); cell.set_text_props(weight='bold', color='white')
+            cell.get_text().set_text(textwrap.fill(cell.get_text().get_text(), width=15))
         else:
-            cell.set_facecolor('#F0F0F0' if row % 2 == 1 else 'white')
-            if column_labels[col] == 'Result':
+            cell.set_facecolor('#F0F0F0' if row % 2 != 0 else 'white')
+            if df_plot.columns[col] == 'Result':
                 text = cell.get_text().get_text()
                 if text == 'PASS': cell.set_facecolor(PASS_COLOR_HEX)
                 elif text == 'FAIL': cell.set_facecolor(FAIL_COLOR_HEX)
+    
     fig.tight_layout(pad=0.1)
     return fig
 
@@ -271,27 +267,21 @@ def create_formatted_excel(df_table):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         sheet_name = 'ThermalTableData'
-        df_table_to_export = df_table.copy()
-        
-        # Convert numeric-like strings back to numbers for Excel
-        for col in df_table_to_export.columns:
-            if col not in ['Result', 'Spec (°C)']:
-                 df_table_to_export[col] = pd.to_numeric(df_table_to_export[col], errors='ignore')
-        
-        df_table_to_export.reset_index().to_excel(writer, sheet_name=sheet_name, index=False)
+        df_to_export = df_table.reset_index()
+        df_to_export.to_excel(writer, sheet_name=sheet_name, index=False)
         
         workbook, worksheet = writer.book, writer.sheets[sheet_name]
         header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'vcenter', 'align': 'center', 'fg_color': '#606060', 'font_color': 'white', 'border': 1})
         pass_format = workbook.add_format({'bg_color': PASS_COLOR_HEX, 'border': 1, 'align': 'center', 'valign': 'vcenter'})
         fail_format = workbook.add_format({'bg_color': FAIL_COLOR_HEX, 'border': 1, 'align': 'center', 'valign': 'vcenter'})
         
-        for col_num, value in enumerate(df_table_to_export.reset_index().columns.values):
+        for col_num, value in enumerate(df_to_export.columns.values):
             worksheet.write(0, col_num, value, header_format)
         
-        result_col_idx = df_table_to_export.reset_index().columns.get_loc("Result")
+        result_col_idx = df_to_export.columns.get_loc("Result")
         result_col_letter = chr(ord('A') + result_col_idx)
-        worksheet.conditional_format(f'{result_col_letter}2:{result_col_letter}{len(df_table)+1}', {'type': 'cell', 'criteria': '==', 'value': '"PASS"', 'format': pass_format})
-        worksheet.conditional_format(f'{result_col_letter}2:{result_col_letter}{len(df_table)+1}', {'type': 'cell', 'criteria': '==', 'value': '"FAIL"', 'format': fail_format})
+        worksheet.conditional_format(f'{result_col_letter}2:{result_col_letter}{len(df_to_export)+1}', {'type': 'cell', 'criteria': '==', 'value': '"PASS"', 'format': pass_format})
+        worksheet.conditional_format(f'{result_col_letter}2:{result_col_letter}{len(df_to_export)+1}', {'type': 'cell', 'criteria': '==', 'value': '"FAIL"', 'format': fail_format})
         
         worksheet.set_column('A:A', 25)
         worksheet.set_column('B:Z', 18)
@@ -343,11 +333,42 @@ def render_viper_ui():
 
     with tab_force:
         st.header("Active Cooling Airflow Estimator")
-        # ... (Forced convection UI code) ...
-    
+        col_force_input, col_force_result = st.columns(2, gap="large")
+        with col_force_input:
+            st.subheader("Input Parameters")
+            fc_param_col1, fc_param_col2 = st.columns(2, gap="medium")
+            with fc_param_col1: fc_power_q = st.number_input("Power to Dissipate (Q, W)", 0.1, value=50.0, step=1.0, format="%.1f", help="The total heat (in Watts) that the fan must remove.")
+            with fc_param_col2:
+                fc_temp_in = st.number_input("Inlet Air Temp (Tin, °C)", 0, 60, 25, key="fc_tin")
+                fc_temp_out = st.number_input("Max. Outlet Temp (Tout, °C)", fc_temp_in + 1, 100, 45, key="fc_tout")
+            st.subheader("Governing Equation")
+            st.latex(r"Q = \dot{m} \cdot C_p \cdot \Delta T")
+        with col_force_result:
+            st.subheader("Evaluation Result")
+            fc_results = calculate_forced_convection(fc_power_q, fc_temp_in, fc_temp_out)
+            if fc_results.get("error"): st.error(f"**Error:** {fc_results['error']}")
+            else: st.metric(label="🌬️ Required Airflow", value=f"{fc_results['cfm']:.2f} CFM", help="CFM: Cubic Feet per Minute.")
+
     with tab_solar:
         st.header("Solar Heat Gain Estimator")
-        # ... (Solar radiation UI code) ...
+        col_solar_input, col_solar_result = st.columns(2, gap="large")
+        with col_solar_input:
+            st.subheader("Input Parameters")
+            solar_material_name = st.selectbox("Enclosure Color/Finish", options=list(solar_absorptivity_materials.keys()) + ["Other..."], key="solar_mat")
+            if solar_material_name == "Other...":
+                alpha_val = st.number_input("Custom Absorptivity (α)", 0.0, 1.0, 0.5, 0.05)
+            else:
+                alpha_val = solar_absorptivity_materials[solar_material_name]["absorptivity"]
+                st.number_input("Corresponding Absorptivity (α)", value=alpha_val, disabled=True)
+            projected_area_mm2 = st.number_input("Projected Surface Area (mm²)", 0.0, value=30000.0, step=1000.0, format="%.1f")
+            solar_irradiance_val = st.number_input("Solar Irradiance (W/m²)", 0, value=1000, step=50)
+            st.subheader("Governing Equation")
+            st.latex(r"Q_{solar} = \alpha \cdot A_{proj} \cdot G_{solar}")
+        with col_solar_result:
+            st.subheader("Evaluation Result")
+            solar_results = calculate_solar_gain(projected_area_mm2, alpha_val, solar_irradiance_val)
+            if solar_results.get("error"): st.error(f"**Error:** {solar_results['error']}")
+            else: st.metric(label="☀️ Absorbed Solar Heat Gain", value=f"{solar_results['solar_gain']:.2f} W")
 
 def render_cobra_ui():
     cobra_logo_svg = """...""" # Omitted for brevity
