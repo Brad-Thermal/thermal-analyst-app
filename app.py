@@ -1,10 +1,11 @@
-# Sercomm Tool Suite v7.4 (featuring Viper & Cobra)
+# Sercomm Tool Suite v8.0 (featuring Viper & Cobra)
 # Author: Gemini
 # Description: A unified platform integrating the Viper Thermal Suite and the Cobra Thermal Analyzer.
 # Version Notes: 
-# - Refined Cobra UI layout for better readability.
-# - The Spec Input table now appears below the selection area, using the full width.
-# - This version is in English as requested.
+# - Cobra Spec Input fields now default to blank.
+# - Re-implemented a structured, table-like "Conclusions" tab for Cobra.
+# - Added "Download" buttons for the Cobra Table (CSV) and Chart (PNG).
+# - Ensured full English translation.
 
 import streamlit as st
 import pandas as pd
@@ -193,20 +194,36 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
         df_table = pd.DataFrame(table_data).set_index("Component")
         
         results = {}
+        conclusion_data = [] # Structured data for conclusions tab
+
         for _, spec_row in spec_df.iterrows():
             ic, spec_type = spec_row['Component'], spec_row['Spec Type']
             effective_spec = np.nan
+            spec_inputs = "N/A"
             try:
-                if spec_type == SPEC_TYPE_TC_CALC: effective_spec = float(spec_row['Tj (°C)']) - (float(spec_row['Pd (W)']) * float(spec_row['Rjc (°C/W)']))
-                elif spec_type == SPEC_TYPE_TJ_ONLY: effective_spec = float(spec_row['Tj (°C)'])
-                elif spec_type == SPEC_TYPE_TA_ONLY: effective_spec = float(spec_row['Ta Limit (°C)'])
+                if spec_type == SPEC_TYPE_TC_CALC:
+                    tj, rjc, pd = float(spec_row['Tj (°C)']), float(spec_row['Rjc (°C/W)']), float(spec_row['Pd (W)'])
+                    effective_spec = tj - (pd * rjc)
+                    spec_inputs = f"Tj={tj}, Rjc={rjc}, Pd={pd}"
+                elif spec_type == SPEC_TYPE_TJ_ONLY:
+                    effective_spec = float(spec_row['Tj (°C)'])
+                    spec_inputs = f"Tj Max: {effective_spec}"
+                elif spec_type == SPEC_TYPE_TA_ONLY:
+                    effective_spec = float(spec_row['Ta Limit (°C)'])
+                    spec_inputs = f"Ta Limit: {effective_spec}"
             except (ValueError, TypeError): pass
             
-            results[ic] = {"spec": effective_spec, "result": "PASS"}
+            ic_result = {"spec": effective_spec, "result": "PASS", "spec_type": spec_type, "spec_inputs": spec_inputs, "series_results": []}
             if pd.notna(effective_spec) and ic in key_ic_data:
-                if any(pd.notna(temp) and temp > effective_spec for temp in key_ic_data[ic].values()):
-                    results[ic]["result"] = "FAIL"
-        
+                for s_name, temp in key_ic_data[ic].items():
+                    res = "N/A"
+                    if pd.notna(temp):
+                        res = "PASS" if temp <= effective_spec else "FAIL"
+                        if res == "FAIL": ic_result["result"] = "FAIL"
+                    ic_result["series_results"].append({"series": s_name, "temp": temp, "result": res})
+            results[ic] = ic_result
+            conclusion_data.append({"component": ic, **ic_result})
+
         df_table['Spec (°C)'] = [f"{results.get(ic, {}).get('spec', 'N/A'):.1f}" if pd.notna(results.get(ic, {}).get('spec')) else 'N/A' for ic in df_table.index]
         df_table['Result'] = [results.get(ic, {}).get('result', 'N/A') for ic in df_table.index]
 
@@ -218,24 +235,8 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
         plt.xticks(rotation=45, ha='right')
         plt.grid(axis='y', linestyle='--', alpha=0.7)
         plt.tight_layout()
-
-        # Conclusion Generation
-        conclusion_lines = ["### COBRA THERMAL ANALYSIS REPORT", f"Analyzed **{len(selected_series)}** configurations for **{len(selected_ics)}** Key ICs."]
-        failed_ics = []
-        for ic, res in results.items():
-            if res['result'] == 'FAIL':
-                failed_ics.append(ic)
         
-        if failed_ics:
-            conclusion_lines.append(f"\n#### Executive Summary: <span style='color:red;'>FAIL</span>\n\n  - The following components exceeded their thermal limits: **{', '.join(failed_ics)}**.")
-        else:
-            conclusion_lines.append(f"\n#### Executive Summary: <span style='color:lightgreen;'>PASS</span>\n\n  - All selected Key ICs are within their specified thermal limits for the analyzed configurations.")
-        
-        for ic, res in results.items():
-            spec_val = f"{res['spec']:.1f}°C" if pd.notna(res['spec']) else "N/A"
-            conclusion_lines.extend([f"\n##### Component: {ic}", f"  - **Spec Limit:** {spec_val}", f"  - **Overall Result:** **{res['result']}**"])
-        
-        return {"table": df_table, "chart": fig, "conclusion": "\n".join(conclusion_lines)}
+        return {"table": df_table, "chart": fig, "conclusion_data": conclusion_data}
     except Exception as e: return {"error": f"An error occurred during analysis: {e}"}
 
 # --- ======================================================================= ---
@@ -261,12 +262,11 @@ def render_cobra_ui():
         st.session_state.cobra_filename = uploaded_file.name
         with st.spinner('Pre-analyzing Excel file...'):
             st.session_state.cobra_prestudy_data = cobra_pre_study(uploaded_file)
-            st.session_state.cobra_analysis_results = None # Reset results
-            if 'spec_df' in st.session_state: del st.session_state.spec_df # Reset spec table
+            st.session_state.cobra_analysis_results = None 
+            if 'spec_df' in st.session_state: del st.session_state.spec_df
     
     cobra_data = st.session_state.cobra_prestudy_data
 
-    # --- Only show the rest of the UI if pre-study is successful ---
     if not cobra_data.get("series_names"):
         st.info("Upload an Excel file to begin analysis.")
         return
@@ -276,55 +276,38 @@ def render_cobra_ui():
         
     st.subheader("Analysis Parameters")
     
-    # --- New Layout: Selections first, then Spec Input below ---
     selection_container = st.container(border=True)
     selection_col1, selection_col2 = selection_container.columns(2, gap="large")
 
     with selection_col1:
         st.write("**1. Select Configurations**")
         with st.container(height=250):
-            selected_series = [
-                name for name in cobra_data["series_names"] 
-                if st.checkbox(name, value=True, key=f"series_{name}")
-            ]
-
+            selected_series = [name for name in cobra_data["series_names"] if st.checkbox(name, value=True, key=f"series_{name}")]
     with selection_col2:
         st.write("**2. Select Key ICs**")
         with st.container(height=250):
-            btn_col1, btn_col2 = st.columns(2)
-            # This simplified logic for select/clear all is more robust in Streamlit
-            if btn_col1.button("Select All", use_container_width=True):
-                for name in cobra_data["component_names"]: st.session_state[f"ic_{name}"] = True
-            if btn_col2.button("Clear All", use_container_width=True):
-                for name in cobra_data["component_names"]: st.session_state[f"ic_{name}"] = False
-            
-            with st.container(height=180):
-                 selected_ics = [
-                     name for name in cobra_data["component_names"]
-                     if st.checkbox(name, key=f"ic_{name}")
-                 ]
+            selected_ics = [name for name in cobra_data["component_names"] if st.checkbox(name, key=f"ic_{name}")]
 
     spec_df = None
     if selected_ics:
         st.subheader("3. Key IC Specification Input")
-        # Initialize or update the spec DataFrame in session_state
         if 'spec_df' not in st.session_state or set(st.session_state.spec_df['Component']) != set(selected_ics):
-            spec_data = [{"Component": ic, "Spec Type": SPEC_TYPE_TC_CALC, "Tj (°C)": 125.0, "Rjc (°C/W)": 1.5, "Pd (W)": 2.0, "Ta Limit (°C)": np.nan} for ic in selected_ics]
+            spec_data = [{"Component": ic, "Spec Type": SPEC_TYPE_TC_CALC, "Tj (°C)": None, "Rjc (°C/W)": None, "Pd (W)": None, "Ta Limit (°C)": None} for ic in selected_ics]
             st.session_state.spec_df = pd.DataFrame(spec_data)
         
         edited_specs_df = st.data_editor(
             st.session_state.spec_df,
-            key="spec_editor", 
-            hide_index=True, 
-            use_container_width=True,
+            key="spec_editor", hide_index=True, use_container_width=True,
             column_config={
                 "Spec Type": st.column_config.SelectboxColumn("Spec Type", options=SPEC_TYPES, required=True),
-                "Component": st.column_config.TextColumn("Component", disabled=True)
+                "Component": st.column_config.TextColumn("Component", disabled=True),
+                "Tj (°C)": st.column_config.NumberColumn("Tj (°C)", format="%.1f"),
+                "Rjc (°C/W)": st.column_config.NumberColumn("Rjc (°C/W)", format="%.2f"),
+                "Pd (W)": st.column_config.NumberColumn("Pd (W)", format="%.2f"),
+                "Ta Limit (°C)": st.column_config.NumberColumn("Ta Limit (°C)", format="%.1f"),
             }
         )
         spec_df = edited_specs_df
-    else:
-        st.info("Select Key ICs from the section above to input their specifications.")
 
     st.divider()
     if st.button("🚀 Analyze Selected Data", use_container_width=True, type="primary"):
@@ -339,9 +322,46 @@ def render_cobra_ui():
         else:
             st.header("Analysis Results")
             res_tab1, res_tab2, res_tab3 = st.tabs(["**Conclusions**", "**Table**", "**Chart**"])
-            with res_tab1: st.markdown(results.get("conclusion", "No conclusion generated."), unsafe_allow_html=True)
-            with res_tab2: st.dataframe(results.get("table"))
-            with res_tab3: st.pyplot(results.get("chart"))
+            with res_tab1:
+                render_structured_conclusions(results.get("conclusion_data", []))
+            with res_tab2: 
+                st.dataframe(results.get("table"))
+                # Download button for table
+                csv = results.get("table").to_csv().encode('utf-8')
+                st.download_button("Download Table as CSV", data=csv, file_name="cobra_table_results.csv", mime="text/csv")
+            with res_tab3: 
+                fig = results.get("chart")
+                st.pyplot(fig)
+                # Download button for chart
+                buf = io.BytesIO()
+                fig.savefig(buf, format="png", bbox_inches='tight')
+                st.download_button("Download Chart as PNG", data=buf, file_name="cobra_chart.png", mime="image/png")
+
+def render_structured_conclusions(conclusion_data):
+    st.subheader("Executive Summary")
+    failed_ics = [item['component'] for item in conclusion_data if item['result'] == 'FAIL']
+    if failed_ics:
+        st.error(f"**FAIL:** The following components exceeded thermal limits: {', '.join(failed_ics)}")
+    else:
+        st.success("**PASS:** All selected Key ICs are within their specified thermal limits.")
+    
+    st.divider()
+    st.subheader("Detailed Component Analysis")
+
+    for item in conclusion_data:
+        with st.expander(f"**{item['component']}** - Result: {item['result']}"):
+            spec_val = f"{item['spec']:.1f}°C" if pd.notna(item['spec']) else "N/A"
+            st.markdown(f"**Specification Type:** `{item['spec_type']}`")
+            st.markdown(f"**Calculated Spec Limit:** `{spec_val}`")
+            if item.get('spec_inputs') != 'N/A':
+                st.markdown(f"**Specification Inputs:** `{item['spec_inputs']}`")
+            
+            st.write("**Performance per Configuration:**")
+            
+            series_results_df = pd.DataFrame(item['series_results'])
+            series_results_df['temp'] = series_results_df['temp'].apply(lambda x: f"{x:.1f}" if pd.notna(x) else "N/A")
+            st.dataframe(series_results_df.rename(columns={'series': 'Configuration', 'temp': 'Temp (°C)', 'result': 'Result'}), use_container_width=True, hide_index=True)
+
 
 # --- ======================================================================= ---
 # ---                           MAIN APP ROUTER                             ---
