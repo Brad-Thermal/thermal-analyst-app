@@ -1,10 +1,8 @@
-# Sercomm Tool Suite v5.0 (featuring Viper & Cobra)
+# Sercomm Tool Suite v6.1 (featuring Viper & Cobra)
 # Author: Gemini
 # Description: A unified platform integrating the Viper Thermal Suite and the Cobra Thermal Analyzer.
 # Version Notes: 
-# - Replaced multiselect boxes in Cobra with a more intuitive checkbox-based UI.
-# - Added "Select All" / "Clear All" functionality for Key ICs.
-# - Ensured all UI elements are in English.
+# - Translated all UI elements to English for both Viper and Cobra modules.
 
 import streamlit as st
 import pandas as pd
@@ -89,7 +87,6 @@ def calculate_solar_gain(projected_area_mm2, alpha, solar_irradiance):
 # --- ======================================================================= ---
 # ---                     COBRA DATA PROCESSING LOGIC                         ---
 # --- ======================================================================= ---
-
 def clean_series_header(raw_header: str) -> str:
     temp_name = str(raw_header).strip()
     if not temp_name: return "Unnamed Series"
@@ -244,8 +241,90 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
 # --- ======================================================================= ---
 
 def render_viper_ui():
-    # ... Viper UI code from previous versions ...
-    st.markdown("Viper UI Placeholder") # Omitted for brevity
+    viper_logo_svg = """...""" # Omitted for brevity
+    st.markdown(f"""
+        <div style="display: flex; align-items: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px;">
+            <div style="margin-right: 15px;">{viper_logo_svg}</div>
+            <div>
+                <h1 style="margin-bottom: 0; color: #FFFFFF;">Viper Thermal Suite</h1>
+                <p style="margin-top: 0; color: #AAAAAA;">A Thermal Assessment Tool that continues the Cobra series.</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    natural_convection_materials = {
+        "Plastic (ABS/PC)": {"emissivity": 0.90, "k_uniform": 0.65},
+        "Aluminum (Anodized)": {"emissivity": 0.85, "k_uniform": 0.90}
+    }
+    solar_absorptivity_materials = {
+        "White (Paint)": {"absorptivity": 0.25},
+        "Silver (Paint)": {"absorptivity": 0.40},
+        "Dark Gray": {"absorptivity": 0.80},
+        "Black (Plastic/Paint)": {"absorptivity": 0.95}
+    }
+
+    tab_nat, tab_force, tab_solar = st.tabs(["🍃 Natural Convection", "🌬️ Forced Convection", "☀️ Solar Radiation"])
+    
+    with tab_nat:
+        st.header("Passive Cooling Power Estimator")
+        col_nat_input, col_nat_result = st.columns(2, gap="large")
+        with col_nat_input:
+            st.subheader("Input Parameters")
+            nc_material_name = st.selectbox("Enclosure Material", options=list(natural_convection_materials.keys()), key="nc_mat")
+            st.markdown("**Product Dimensions (mm)**")
+            dim_col1, dim_col2, dim_col3 = st.columns(3)
+            with dim_col1: nc_dim_L = st.number_input("Length (L)", 1.0, 1000.0, 200.0, 10.0, "%.1f", key="nc_l")
+            with dim_col2: nc_dim_W = st.number_input("Width (W)", 1.0, 1000.0, 150.0, 10.0, "%.1f", key="nc_w")
+            with dim_col3: nc_dim_H = st.number_input("Height (H)", 1.0, 500.0, 50.0, 5.0, "%.1f", key="nc_h")
+            st.markdown("**Operating Conditions (°C)**")
+            op_cond_col1, op_cond_col2 = st.columns(2)
+            with op_cond_col1: nc_temp_ambient = st.number_input("Ambient Temp (Ta)", 0, 60, 25, key="nc_ta")
+            with op_cond_col2: nc_temp_surface_peak = st.number_input("Max. Surface Temp (Ts)", nc_temp_ambient + 1, 100, 50, key="nc_ts")
+        with col_nat_result:
+            st.subheader("Evaluation Result")
+            selected_material_props_nc = natural_convection_materials[nc_material_name]
+            nc_results = calculate_natural_convection(nc_dim_L, nc_dim_W, nc_dim_H, nc_temp_surface_peak, nc_temp_ambient, selected_material_props_nc)
+            if nc_results.get("error"): st.error(f"**Error:** {nc_results['error']}")
+            else: st.metric(label="✅ Max. Dissipatable Power", value=f"{nc_results['total_power']:.2f} W", help="This result includes built-in material uniformity and a fixed engineering safety factor (0.9).")
+
+    with tab_force:
+        st.header("Active Cooling Airflow Estimator")
+        col_force_input, col_force_result = st.columns(2, gap="large")
+        with col_force_input:
+            st.subheader("Input Parameters")
+            fc_param_col1, fc_param_col2 = st.columns(2, gap="medium")
+            with fc_param_col1: fc_power_q = st.number_input("Power to Dissipate (Q, W)", 0.1, value=50.0, step=1.0, format="%.1f", help="The total heat (in Watts) that the fan must remove.")
+            with fc_param_col2:
+                fc_temp_in = st.number_input("Inlet Air Temp (Tin, °C)", 0, 60, 25, key="fc_tin")
+                fc_temp_out = st.number_input("Max. Outlet Temp (Tout, °C)", fc_temp_in + 1, 100, 45, key="fc_tout")
+            st.subheader("Governing Equation")
+            st.latex(r"Q = \dot{m} \cdot C_p \cdot \Delta T")
+        with col_force_result:
+            st.subheader("Evaluation Result")
+            fc_results = calculate_forced_convection(fc_power_q, fc_temp_in, fc_temp_out)
+            if fc_results.get("error"): st.error(f"**Error:** {fc_results['error']}")
+            else: st.metric(label="🌬️ Required Airflow", value=f"{fc_results['cfm']:.2f} CFM", help="CFM: Cubic Feet per Minute.")
+
+    with tab_solar:
+        st.header("Solar Heat Gain Estimator")
+        col_solar_input, col_solar_result = st.columns(2, gap="large")
+        with col_solar_input:
+            st.subheader("Input Parameters")
+            solar_material_name = st.selectbox("Enclosure Color/Finish", options=list(solar_absorptivity_materials.keys()) + ["Other..."], key="solar_mat")
+            if solar_material_name == "Other...":
+                alpha_val = st.number_input("Custom Absorptivity (α)", 0.0, 1.0, 0.5, 0.05)
+            else:
+                alpha_val = solar_absorptivity_materials[solar_material_name]["absorptivity"]
+                st.number_input("Corresponding Absorptivity (α)", value=alpha_val, disabled=True)
+            projected_area_mm2 = st.number_input("Projected Surface Area (mm²)", 0.0, value=30000.0, step=1000.0, format="%.1f")
+            solar_irradiance_val = st.number_input("Solar Irradiance (W/m²)", 0, value=1000, step=50)
+            st.subheader("Governing Equation")
+            st.latex(r"Q_{solar} = \alpha \cdot A_{proj} \cdot G_{solar}")
+        with col_solar_result:
+            st.subheader("Evaluation Result")
+            solar_results = calculate_solar_gain(projected_area_mm2, alpha_val, solar_irradiance_val)
+            if solar_results.get("error"): st.error(f"**Error:** {solar_results['error']}")
+            else: st.metric(label="☀️ Absorbed Solar Heat Gain", value=f"{solar_results['solar_gain']:.2f} W")
 
 def render_cobra_ui():
     cobra_logo_svg = """...""" # Omitted for brevity
@@ -254,7 +333,6 @@ def render_cobra_ui():
     st.header("Excel Data Post-Processing")
     uploaded_file = st.file_uploader("Upload an Excel file (.xlsx or .xls)", type=["xlsx", "xls"], key="cobra_file_uploader")
 
-    # Initialize session state for all cobra related data
     if 'cobra_prestudy_data' not in st.session_state: st.session_state.cobra_prestudy_data = {}
     if 'cobra_analysis_results' not in st.session_state: st.session_state.cobra_analysis_results = None
     if 'cobra_checkboxes' not in st.session_state: st.session_state.cobra_checkboxes = {}
@@ -264,7 +342,6 @@ def render_cobra_ui():
         with st.spinner('Pre-analyzing Excel file...'):
             st.session_state.cobra_prestudy_data = cobra_pre_study(uploaded_file)
             st.session_state.cobra_analysis_results = None
-            # Initialize checkbox states
             st.session_state.cobra_checkboxes = {
                 **{f"series_{name}": True for name in st.session_state.cobra_prestudy_data.get("series_names", [])},
                 **{f"ic_{name}": False for name in st.session_state.cobra_prestudy_data.get("component_names", [])}
@@ -275,37 +352,37 @@ def render_cobra_ui():
     if cobra_data.get("error"): st.error(cobra_data["error"]); return
     if not cobra_data.get("series_names"): st.info("Upload an Excel file to see analysis options."); return
         
-    st.subheader("Analysis Selections")
-    col1, col2 = st.columns(2)
+    # --- Compact Input Layout ---
+    input_col1, input_col2 = st.columns([1, 1.2], gap="large")
 
-    with col1:
-        with st.container(border=True):
+    with input_col1:
+        st.subheader("Analysis Selections")
+        with st.container(border=True, height=250):
             st.write("**Select Configurations:**")
             for name in cobra_data["series_names"]:
                 st.checkbox(name, key=f"series_{name}")
-    
-    with col2:
-        with st.container(border=True):
+
+        with st.container(border=True, height=250):
             st.write("**Select Key ICs:**")
             btn_col1, btn_col2 = st.columns(2)
             if btn_col1.button("Select All", use_container_width=True):
                 for name in cobra_data["component_names"]: st.session_state.cobra_checkboxes[f"ic_{name}"] = True
             if btn_col2.button("Clear All", use_container_width=True):
                 for name in cobra_data["component_names"]: st.session_state.cobra_checkboxes[f"ic_{name}"] = False
-
             for name in cobra_data["component_names"]:
                 st.checkbox(name, key=f"ic_{name}")
     
-    # Collect selected items from checkboxes
     selected_series = [name for name in cobra_data["series_names"] if st.session_state.cobra_checkboxes.get(f"series_{name}")]
     selected_ics = [name for name in cobra_data["component_names"] if st.session_state.cobra_checkboxes.get(f"ic_{name}")]
 
-    spec_df = None
-    if selected_ics:
-        st.divider()
-        st.subheader("Key IC Specification Input")
-        spec_data = [{"Component": ic, "Spec Type": SPEC_TYPE_TC_CALC, "Tj (°C)": 125.0, "Rjc (°C/W)": 1.5, "Pd (W)": 2.0, "Ta Limit (°C)": np.nan} for ic in selected_ics]
-        spec_df = st.data_editor(pd.DataFrame(spec_data), key="spec_editor", hide_index=True, use_container_width=True)
+    with input_col2:
+        spec_df = None
+        if selected_ics:
+            st.subheader("Key IC Specification Input")
+            spec_data = [{"Component": ic, "Spec Type": SPEC_TYPE_TC_CALC, "Tj (°C)": 125.0, "Rjc (°C/W)": 1.5, "Pd (W)": 2.0, "Ta Limit (°C)": np.nan} for ic in selected_ics]
+            spec_df = st.data_editor(pd.DataFrame(spec_data), key="spec_editor", hide_index=True, use_container_width=True, height=520)
+        else:
+            st.info("Select Key ICs from the left panel to input their specifications.")
 
     st.divider()
     if st.button("🚀 Analyze Selected Data", use_container_width=True, type="primary"):
