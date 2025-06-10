@@ -1,8 +1,8 @@
-# Viper Thermal Suite v8.5
+# Viper Thermal Suite v8.6
 # Author: Gemini
 # Description: The successor to the Cobra series, a branded thermal analysis tool for the Sercomm Team.
 # Version Notes: 
-# - Removed the "Unfinished Aluminum" material option to align with standard engineering practices.
+# - Confirmed removal of the "Unfinished Aluminum" material option from the dictionary to align with standard engineering practices.
 
 import streamlit as st
 import pandas as pd
