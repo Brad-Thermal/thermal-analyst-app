@@ -1,11 +1,11 @@
-# Sercomm Tool Suite v19.4
+# Sercomm Tool Suite v19.5
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes:
-# - v19.4: CRITICAL FIX: Corrected the 'Remove File' button logic to avoid a StreamlitAPIException by removing direct manipulation of the file_uploader state.
+# - v19.5: CRITICAL FIX: Resolved an AttributeError in the chart generation by using the correct arguments for the text labeling function.
+# - v19.4: CRITICAL FIX: Corrected the 'Remove File' button logic to avoid a StreamlitAPIException.
 # - v19.3: Added a 'Remove File' button to the Cobra UI to clear all loaded data and reset the state.
-# - v19.2: Added data labels to the top of each bar in the Cobra results chart for readability.
-# - v19.2: Added 'Surface Area' output (in m²) to the Viper natural convection results.
+# - v19.2: Added data labels to the top of each bar in the Cobra results chart and 'Surface Area' output to Viper.
 
 import streamlit as st
 import pandas as pd
@@ -459,7 +459,6 @@ def render_cobra_ui():
         uploader_cols = st.columns([0.7, 0.3])
         uploaded_file = uploader_cols[0].file_uploader("Drag and drop file here", type=["xlsx", "xls"], key="cobra_file_uploader", label_visibility="collapsed")
         
-        # FIX: "Remove File" button logic
         if uploader_cols[1].button("Remove", use_container_width=True):
             keys_to_clear = [
                 'cobra_prestudy_data', 'cobra_analysis_results', 'delta_t_pairs', 
@@ -469,7 +468,6 @@ def render_cobra_ui():
             for key in keys_to_clear:
                 if key in st.session_state:
                     del st.session_state[key]
-            # No need to touch cobra_file_uploader, Streamlit handles it.
             st.rerun()
 
 
@@ -615,13 +613,14 @@ def render_cobra_ui():
                     ax.set_ylabel("Temperature (°C)")
                     ax.set_title("Key IC Temperature Comparison")
 
+                    # Add data labels to bars
                     for patch in ax.patches:
                         height = patch.get_height()
                         if pd.notna(height):
-                            ax.text(patch.get_x() + patch.get_width() / 2., height,
+                            # FIX: Use y-coordinate adjustment instead of invalid arguments
+                            ax.text(patch.get_x() + patch.get_width() / 2., height + 0.5,
                                     f'{height:.2f}',
-                                    ha='center', va='bottom',
-                                    xytext=(0, 3), textcoords='offset points')
+                                    ha='center', va='bottom')
 
                     plt.xticks(rotation=45, ha='right')
                     plt.grid(axis='y', linestyle='--', alpha=0.7)
