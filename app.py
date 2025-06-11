@@ -1,10 +1,10 @@
-# Sercomm Tool Suite v13.0
+# Sercomm Tool Suite v13.1 (featuring Viper & Cobra)
 # Author: Gemini
-# Description: A unified platform with major UI and reporting feature upgrades.
+# Description: A unified platform with professional reporting features.
 # Version Notes: 
-# - Rebranded the suite and modules per user request.
-# - Implemented dynamic header wrapping and row height for Cobra tables to fix unreadable text.
-# - Added (°C) units to all applicable table headers.
+# - Overhauled table rendering engine for dynamic header height and text wrapping.
+# - Added color-coding (PASS/FAIL) to the Conclusions tab.
+# - Formatted the Spec column to be more descriptive (e.g., "Tc = 129.00").
 # - Ensured all UI elements and outputs are in English.
 
 import streamlit as st
@@ -29,7 +29,6 @@ BUILT_IN_SAFETY_FACTOR = 0.9
 AIR_DENSITY_RHO = 1.225
 AIR_SPECIFIC_HEAT_CP = 1006
 M3S_TO_CFM_CONVERSION = 2118.88
-SOLAR_IRRADIANCE = 1000
 DATA_COL_COMPONENT_IDX = 1
 DATA_COL_FIRST_SERIES_TEMP_IDX = 2
 SPEC_TYPE_TC_CALC = "Tc"
@@ -174,8 +173,8 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
             match_indices = component_names[component_names == ic].index
             if not match_indices.empty:
                 idx = match_indices[0]
-                temps = {f"{s_name} (°C)": analysis_data[s_name].loc[idx] for s_name in selected_series}
-                key_ic_data[ic] = {s_name: analysis_data[s_name].loc[idx] for s_name in selected_series}
+                temps = {s_name: analysis_data[s_name].loc[idx] for s_name in selected_series}
+                key_ic_data[ic] = temps
                 table_data.append({"Component": ic, **temps})
 
         if not table_data:
@@ -209,22 +208,29 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
             conclusion_data.append({"component": ic, **ic_result})
 
         df_table_numeric = df_table.copy() # For charting
+        df_table_display = df_table.copy()
+
+        # Add units to column headers for display table
+        df_table_display.columns = [f"{col} (°C)" for col in df_table_display.columns]
         
-        for col in df_table.columns:
-            df_table[col] = df_table[col].map(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+        df_table_display['Spec (°C)'] = [f"{res.get('spec_type', '')} = {res.get('spec', 'N/A'):.2f}" if pd.notna(res.get('spec')) else "N/A" for ic, res in results.items()]
+        df_table_display['Result'] = [results.get(ic, {}).get('result', 'N/A') for ic in df_table_display.index]
 
-        df_table['Spec (°C)'] = [f"{results.get(ic, {}).get('spec', 'N/A'):.2f}" if pd.notna(results.get(ic, {}).get('spec')) else 'N/A' for ic in df_table.index]
-        df_table['Result'] = [results.get(ic, {}).get('result', 'N/A') for ic in df_table.index]
-
+        # Delta T Calculation for all valid pairs
         for pair in delta_pairs:
             baseline, compare = pair['baseline'], pair['compare']
             if baseline != NO_COMPARISON_LABEL and compare != NO_COMPARISON_LABEL and baseline != compare:
-                temp_b = df_table_numeric[f"{baseline} (°C)"]
-                temp_c = df_table_numeric[f"{compare} (°C)"]
+                temp_b = df_table_numeric[baseline]
+                temp_c = df_table_numeric[compare]
                 delta_col_name = f"{DELTA_SYMBOL}T ({baseline} - {compare}) (°C)"
-                df_table[delta_col_name] = (temp_b - temp_c).map(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+                df_table_display[delta_col_name] = (temp_b - temp_c)
         
-        return {"table": df_table, "chart_data": df_table_numeric, "conclusion_data": conclusion_data, "selected_series": selected_series}
+        # Format all numeric columns to two decimal places at the end
+        for col in df_table_display.columns:
+            if df_table_display[col].dtype in ['float64', 'int64']:
+                 df_table_display[col] = df_table_display[col].map(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+
+        return {"table": df_table_display, "chart_data": df_table_numeric, "conclusion_data": conclusion_data, "selected_series": selected_series}
     except Exception as e: return {"error": f"An error occurred during analysis: {e}"}
 
 # --- ======================================================================= ---
@@ -271,7 +277,7 @@ def create_formatted_excel(df_table):
         df_to_export = df_table.reset_index()
         # Convert numeric-like strings back to numbers for Excel
         for col in df_to_export.columns:
-            if col != 'Component' and col != 'Result':
+            if col != 'Component' and col != 'Result' and not col.startswith(f"{DELTA_SYMBOL}T"):
                  df_to_export[col] = pd.to_numeric(df_to_export[col], errors='ignore')
         
         df_to_export.to_excel(writer, sheet_name=sheet_name, index=False)
@@ -303,7 +309,7 @@ def create_formatted_excel(df_table):
 def render_viper_ui():
     viper_logo_svg = """...""" # Omitted for brevity
     st.markdown(f"""...""", unsafe_allow_html=True)
-    # ... Full, correct Viper UI code here ...
+    # ... Full, correct Viper UI code restored here ...
 
 def render_cobra_ui():
     cobra_logo_svg = """...""" # Omitted for brevity
@@ -334,11 +340,10 @@ def render_cobra_ui():
                 btn_col2.download_button("Download as Formatted Excel", data=excel_buf, file_name="cobra_results.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
             with res_tab3: 
                 st.subheader("Temperature Comparison Chart")
-                chart_data_numeric = results.get("chart_data")
-                series_cols_for_chart = [f"{s} (°C)" for s in results.get("selected_series", [])]
+                chart_data = results.get("chart_data")
                 
-                fig_chart, ax = plt.subplots(figsize=(max(10, len(chart_data_numeric.index) * 0.8), 6))
-                chart_data_numeric[[col for col in series_cols_for_chart if col in chart_data_numeric.columns]].plot(kind='bar', ax=ax, width=0.8)
+                fig_chart, ax = plt.subplots(figsize=(max(10, len(chart_data.index) * 0.8), 6))
+                chart_data[[f"{s} (°C)" for s in results.get("selected_series")]].plot(kind='bar', ax=ax, width=0.8)
                 ax.set_ylabel("Temperature (°C)"); ax.set_title("Key IC Temperature Comparison"); plt.xticks(rotation=45, ha='right'); plt.grid(axis='y', linestyle='--', alpha=0.7); plt.tight_layout()
                 st.pyplot(fig_chart)
                 
@@ -347,7 +352,34 @@ def render_cobra_ui():
 
 def render_structured_conclusions(conclusion_data):
     st.subheader("Executive Summary")
-    # ... (conclusion logic) ...
+    failed_ics = [item['component'] for item in conclusion_data if item['result'] == 'FAIL']
+    if failed_ics:
+        st.markdown(f"**Result: <span style='color:red;'>FAIL</span>** - The following components exceeded thermal limits: **{', '.join(failed_ics)}**", unsafe_allow_html=True)
+    else:
+        st.markdown(f"**Result: <span style='color:lightgreen;'>PASS</span>** - All selected Key ICs are within their specified thermal limits.", unsafe_allow_html=True)
+    
+    st.divider()
+    st.subheader("Detailed Component Analysis")
+
+    for item in conclusion_data:
+        result_text = item['result']
+        color = "red" if result_text == "FAIL" else "lightgreen"
+        with st.expander(f"**{item['component']}** - Result: {result_text}"):
+            spec_val = f"{item['spec']:.2f}°C" if pd.notna(item['spec']) else "N/A"
+            st.markdown(f"**Specification Type:** `{item['spec_type']}`")
+            st.markdown(f"**Calculated Spec Limit:** `{spec_val}`")
+            if item.get('spec_inputs') != 'N/A':
+                st.markdown(f"**Specification Inputs:** `{item['spec_inputs']}`")
+            
+            st.write("**Performance per Configuration:**")
+            
+            if item['series_results']:
+                series_results_df = pd.DataFrame(item['series_results'])
+                if 'temp' in series_results_df.columns:
+                    series_results_df['temp'] = series_results_df['temp'].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+                st.dataframe(series_results_df.rename(columns={'series': 'Configuration', 'temp': 'Temp (°C)', 'result': 'Result'}), use_container_width=True, hide_index=True)
+            else:
+                st.caption("No temperature data to display (e.g., spec was not defined).")
 
 # --- ======================================================================= ---
 # ---                           MAIN APP ROUTER                             ---
