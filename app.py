@@ -1,11 +1,10 @@
-# Sercomm Tool Suite v18.7
+# Sercomm Tool Suite v19.2
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes:
-# - v18.7: Re-enabled manual column width calculation for the table image and reverted UI to English.
-# - v18.6: CRITICAL FIX: Rewrote the table image generation logic to manually set row heights.
-# - v18.5: CRITICAL FIX: Completely rewrote the Excel export function to handle data types explicitly.
-# - v18.3: Increased the row height in the generated table image for better readability.
+# - v19.2: Added data labels to the top of each bar in the Cobra results chart for readability.
+# - v19.2: Added 'Surface Area' output (in m²) to the Viper natural convection results.
+# - v19.1: Based on user's preferred version with table image formatting optimizations.
 
 import streamlit as st
 import pandas as pd
@@ -69,7 +68,7 @@ def calculate_natural_convection(L, W, H, Ts_peak, Ta, material_props):
         Q_rad = epsilon * STEFAN_BOLTZMANN_CONST * A_total * (Ts_eff_K**4 - Ta_K**4)
         Q_ideal_total = Q_conv_total + Q_rad
         Q_final = Q_ideal_total * BUILT_IN_SAFETY_FACTOR
-        return {"total_power": Q_final, "error": None}
+        return {"total_power": Q_final, "surface_area": A_total, "error": None}
     except Exception as e: return {"error": f"An unexpected error occurred during calculation: {e}"}
 
 def calculate_forced_convection(power_q, T_in, T_out):
@@ -262,30 +261,25 @@ def generate_formatted_table_image(df_table):
     column_labels = df_plot.columns.tolist()
     wrapped_column_labels = [textwrap.fill(label, width=15) for label in column_labels]
 
-    # --- FIX: Re-introduced manual width calculation ---
-    # Adjust the multiplier (2.0) to make columns wider or narrower
     fig_width = 3.0 * len(column_labels) 
     
-    # Let matplotlib determine height based on content
-    fig, ax = plt.subplots(figsize=(fig_width, 1)) # Height is initially small
+    fig, ax = plt.subplots(figsize=(fig_width, 1))
     ax.axis('off')
 
     table = ax.table(cellText=df_plot.values, colLabels=wrapped_column_labels, loc='center', cellLoc='center')
     table.auto_set_font_size(False)
     table.set_fontsize(13.5)
 
-    # Manually set cell heights for better control
     cells = table.get_celld()
     for (row, col), cell in cells.items():
         cell.set_edgecolor('black')
-        if row == 0:  # Header row
-            cell.set_height(0.5) # Taller header
+        if row == 0:
+            cell.set_height(0.5)
             cell.set_facecolor('#606060')
             cell.set_text_props(weight='bold', color='white')
-        else:  # Data rows
-            cell.set_height(0.5) # Standard height for data
+        else:
+            cell.set_height(0.5)
             cell.set_facecolor('#F0F0F0' if row % 2 != 0 else 'white')
-            # Color PASS/FAIL results
             if 'Result' in df_plot.columns and column_labels[col] == 'Result':
                 text = cell.get_text().get_text()
                 if text == 'PASS':
@@ -293,7 +287,6 @@ def generate_formatted_table_image(df_table):
                 elif text == 'FAIL':
                     cell.set_facecolor(FAIL_COLOR_HEX)
     
-    # Adjust figure height after table is drawn
     fig.canvas.draw()
     bbox = table.get_window_extent(ax.figure.canvas.get_renderer())
     fig.set_size_inches(fig_width, bbox.height/fig.dpi + 0.75)
@@ -394,8 +387,11 @@ def render_viper_ui():
             st.subheader("Evaluation Result")
             selected_material_props_nc = natural_convection_materials[nc_material_name]
             nc_results = calculate_natural_convection(nc_dim_L, nc_dim_W, nc_dim_H, nc_temp_surface_peak, nc_temp_ambient, selected_material_props_nc)
-            if nc_results.get("error"): st.error(f"**Error:** {nc_results['error']}")
-            else: st.metric(label="✅ Max. Dissipatable Power", value=f"{nc_results['total_power']:.2f} W", help="This result includes built-in material uniformity and a fixed engineering safety factor (0.9).")
+            if nc_results.get("error"): 
+                st.error(f"**Error:** {nc_results['error']}")
+            else:
+                st.metric(label="📐 Surface Area", value=f"{nc_results['surface_area']:.4f} m²")
+                st.metric(label="✅ Max. Dissipatable Power", value=f"{nc_results['total_power']:.2f} W", help="This result includes built-in material uniformity and a fixed engineering safety factor (0.9).")
 
     with tab_force:
         st.header("Active Cooling Airflow Estimator")
@@ -598,24 +594,30 @@ def render_cobra_ui():
                 if chart_data_numeric is not None and not chart_data_numeric.empty:
                     fig_chart, ax = plt.subplots(figsize=(max(10, len(chart_data_numeric.index) * 0.8), 6))
                     df_chart_data_to_plot = chart_data_numeric[[s for s in selected_series if s in chart_data_numeric.columns]].copy()
-                    df_chart_data_to_plot.columns = [f"{col}" for col in df_chart_data_to_plot.columns]
+                    
+                    df_chart_data_to_plot.plot(kind='bar', ax=ax, width=0.8)
+                    ax.set_ylabel("Temperature (°C)")
+                    ax.set_title("Key IC Temperature Comparison")
 
-                    if not df_chart_data_to_plot.empty:
-                      df_chart_data_to_plot.plot(kind='bar', ax=ax, width=0.8)
-                      ax.set_ylabel("Temperature (°C)")
-                      ax.set_title("Key IC Temperature Comparison")
-                      plt.xticks(rotation=45, ha='right')
-                      plt.grid(axis='y', linestyle='--', alpha=0.7)
-                      plt.tight_layout()
-                      st.pyplot(fig_chart)
+                    # Add data labels to bars
+                    for patch in ax.patches:
+                        height = patch.get_height()
+                        if pd.notna(height):
+                            ax.text(patch.get_x() + patch.get_width() / 2., height,
+                                    f'{height:.2f}',
+                                    ha='center', va='bottom',
+                                    xytext=(0, 3), textcoords='offset points')
 
-                      chart_buf = io.BytesIO()
-                      fig_chart.savefig(chart_buf, format="png", dpi=300, bbox_inches='tight')
-                      st.download_button("Download Chart as PNG", data=chart_buf, file_name="cobra_chart.png", mime="image/png", use_container_width=True)
-                    else:
-                      st.warning("No data available to plot for the selected configurations.")
+                    plt.xticks(rotation=45, ha='right')
+                    plt.grid(axis='y', linestyle='--', alpha=0.7)
+                    plt.tight_layout()
+                    st.pyplot(fig_chart)
+
+                    chart_buf = io.BytesIO()
+                    fig_chart.savefig(chart_buf, format="png", dpi=300, bbox_inches='tight')
+                    st.download_button("Download Chart as PNG", data=chart_buf, file_name="cobra_chart.png", mime="image/png", use_container_width=True)
                 else:
-                    st.warning("No chart data available.")
+                    st.warning("No data available to plot for the selected configurations.")
 
 
 def render_structured_conclusions(conclusion_data):
