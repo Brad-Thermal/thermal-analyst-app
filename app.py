@@ -1,9 +1,9 @@
-# Sercomm Tool Suite v18.5
+# Sercomm Tool Suite v18.6
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes:
+# - v18.6: CRITICAL FIX: Rewrote the table image generation logic to manually set row heights, giving explicit control over header and data row appearance.
 # - v18.5: CRITICAL FIX: Completely rewrote the Excel export function to handle data types explicitly, resolving the TypeError crash.
-# - v18.4: CRITICAL FIX: Rewrote the Excel export function to resolve a TypeError and prevent app crashes.
 # - v18.3: Increased the row height in the generated table image for better readability.
 # - v18.2: Reordered the results table to place 'Spec (°C)' next to 'Component' for easier comparison.
 
@@ -235,10 +235,8 @@ def run_cobra_analysis(file_buffer, cobra_data, selected_series, selected_ics, s
             
             df_table_display = df_table_display[new_order]
 
-        # This dataframe is used for the Excel export and needs to retain numeric types
         df_for_excel = df_table_display.copy()
         
-        # This dataframe is for display where everything is a string
         df_for_image = df_table_display.copy()
         for col in df_for_image.columns:
             if df_for_image[col].dtype in ['float64', 'int64']:
@@ -255,35 +253,43 @@ def run_cobra_analysis(file_buffer, cobra_data, selected_series, selected_ics, s
 
 def generate_formatted_table_image(df_table):
     if df_table.empty:
-        fig, ax = plt.subplots(figsize=(8, 1)); ax.text(0.5, 0.5, "沒有數據可顯示。", ha="center", va="center"); ax.axis('off'); return fig
+        fig, ax = plt.subplots(figsize=(8, 1))
+        ax.text(0.5, 0.5, "沒有數據可顯示。", ha="center", va="center")
+        ax.axis('off')
+        return fig
 
     df_plot = df_table.reset_index()
     column_labels = df_plot.columns.tolist()
     wrapped_column_labels = [textwrap.fill(label, width=15) for label in column_labels]
 
-    num_rows = len(df_plot)
-    header_max_lines = max(label.count('\n') + 1 for label in wrapped_column_labels)
-    # Increased row height multiplier to 0.8
-    fig_height = (num_rows * 3.0) + (header_max_lines * 3.0) + 3.0 
-    fig_width = 2.0 * len(column_labels)
-    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
-    ax.axis('off'); ax.axis('tight')
+    # Let matplotlib determine the figure size based on content
+    fig, ax = plt.subplots() 
+    ax.axis('off')
 
     table = ax.table(cellText=df_plot.values, colLabels=wrapped_column_labels, loc='center', cellLoc='center')
-    table.auto_set_font_size(False); table.set_fontsize(12)
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
 
+    # Manually set cell heights for better control
     cells = table.get_celld()
     for (row, col), cell in cells.items():
         cell.set_edgecolor('black')
-        if row == 0:
-            cell.set_facecolor('#606060'); cell.set_text_props(weight='bold', color='white')
-        else:
+        if row == 0:  # Header row
+            cell.set_height(0.1) # Taller header
+            cell.set_facecolor('#606060')
+            cell.set_text_props(weight='bold', color='white')
+        else:  # Data rows
+            cell.set_height(0.06) # Standard height for data
             cell.set_facecolor('#F0F0F0' if row % 2 != 0 else 'white')
+            # Color PASS/FAIL results
             if 'Result' in df_plot.columns and column_labels[col] == 'Result':
                 text = cell.get_text().get_text()
-                if text == 'PASS': cell.set_facecolor(PASS_COLOR_HEX)
-                elif text == 'FAIL': cell.set_facecolor(FAIL_COLOR_HEX)
-    fig.tight_layout(pad=0.2)
+                if text == 'PASS':
+                    cell.set_facecolor(PASS_COLOR_HEX)
+                elif text == 'FAIL':
+                    cell.set_facecolor(FAIL_COLOR_HEX)
+    
+    fig.tight_layout()
     return fig
 
 def create_formatted_excel(df_table):
@@ -307,7 +313,6 @@ def create_formatted_excel(df_table):
             for col_num, cell_value in enumerate(row_data):
                 col_name = df_to_export.columns[col_num]
                 
-                # Default format is centered
                 current_format = center_format
                 if col_name == 'Result':
                     if cell_value == 'PASS':
@@ -315,15 +320,15 @@ def create_formatted_excel(df_table):
                     elif cell_value == 'FAIL':
                         current_format = fail_format
                 
-                # Check for number types explicitly
-                if isinstance(cell_value, (int, float)):
-                    if pd.notna(cell_value):
-                        worksheet.write_number(row_num + 1, col_num, cell_value, current_format)
+                try:
+                    # Attempt to convert to float, if it works, write as a number
+                    num_value = float(cell_value)
+                    if pd.notna(num_value):
+                        worksheet.write_number(row_num + 1, col_num, num_value, current_format)
                     else:
-                        # Handles NaN
                         worksheet.write_blank(row_num + 1, col_num, None, current_format)
-                else:
-                    # Treat everything else as a string
+                except (ValueError, TypeError):
+                    # If conversion fails, it's a string
                     worksheet.write_string(row_num + 1, col_num, str(cell_value), current_format)
 
         worksheet.set_column('A:A', 25)
@@ -570,7 +575,6 @@ def render_cobra_ui():
                 render_structured_conclusions(results.get("conclusion_data", []))
             with res_tab2:
                 st.subheader("數據總表")
-                # Pass the correct dataframe to the respective functions
                 table_fig = generate_formatted_table_image(results.get("table_for_image"))
                 st.pyplot(table_fig)
 
