@@ -1,9 +1,10 @@
-# Sercomm Tool Suite v13.2
+# Sercomm Tool Suite v12.1
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes: 
-# - Implemented color-coding (PASS/FAIL) for the results table within the "Conclusions" tab.
-# - Ensured full English translation.
+# - FINAL BUG FIX: Restored the complete UI code for the Viper Thermal Suite module.
+# - Ensured all UI elements and outputs for both modules are in English as requested.
+# - Maintained all recent features for Cobra (formatted reporting, DeltaT, etc.).
 
 import streamlit as st
 import pandas as pd
@@ -377,12 +378,93 @@ def render_viper_ui():
 
 def render_cobra_ui():
     cobra_logo_svg = """...""" # Omitted for brevity
-    st.markdown(f"""...""", unsafe_allow_html=True)
+    st.markdown(f"""
+        <div style="display: flex; align-items: center; padding-bottom: 10px; margin-bottom: 20px;">
+            <div style="margin-right: 15px;">{cobra_logo_svg}</div>
+            <div>
+                <h1 style="margin-bottom: -15px; color: #FFFFFF;">Cobra</h1>
+                <p style="margin-top: 0; color: #AAAAAA;">Data Transformation</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
     uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx", "xls"], key="cobra_file_uploader")
 
-    # ... (Rest of the Cobra UI and logic) ...
+    if 'cobra_prestudy_data' not in st.session_state: st.session_state.cobra_prestudy_data = {}
+    if 'cobra_analysis_results' not in st.session_state: st.session_state.cobra_analysis_results = None
+    if 'delta_t_pairs' not in st.session_state: st.session_state.delta_t_pairs = []
     
+    if uploaded_file and st.session_state.get('cobra_filename') != uploaded_file.name:
+        st.session_state.cobra_filename = uploaded_file.name
+        with st.spinner('Pre-analyzing Excel file...'):
+            st.session_state.cobra_prestudy_data = cobra_pre_study(uploaded_file)
+            st.session_state.cobra_analysis_results = None
+            st.session_state.delta_t_pairs = []
+            if 'spec_df' in st.session_state: del st.session_state.spec_df
+    
+    cobra_data = st.session_state.get('cobra_prestudy_data', {})
+
+    if not cobra_data.get("series_names"):
+        st.info("Upload an Excel file to begin analysis."); return
+    if cobra_data.get("error"):
+        st.error(cobra_data["error"]); return
+        
+    st.subheader("Analysis Parameters")
+    
+    selection_container = st.container(border=True)
+    selection_col1, selection_col2 = selection_container.columns(2, gap="large")
+
+    with selection_col1:
+        st.write("**1. Select Configurations**")
+        with st.container(height=250):
+            selected_series = [name for name in cobra_data["series_names"] if st.checkbox(name, value=True, key=f"series_{name}")]
+    with selection_col2:
+        st.write("**2. Select Key ICs**")
+        with st.container(height=250):
+            selected_ics = [name for name in cobra_data["component_names"] if st.checkbox(name, key=f"ic_{name}")]
+
+    with selection_container:
+        st.write(f"**3. {DELTA_SYMBOL}T Comparison (Optional)**")
+        
+        for i, pair in enumerate(st.session_state.delta_t_pairs):
+            pair_cols = st.columns([2, 2, 1])
+            baseline = pair_cols[0].selectbox(f"Baseline:", [NO_COMPARISON_LABEL] + selected_series, key=f"delta_b_{i}")
+            compare = pair_cols[1].selectbox(f"Compare to:", [NO_COMPARISON_LABEL] + selected_series, key=f"delta_c_{i}")
+            if pair_cols[2].button("Remove", key=f"remove_delta_{i}"):
+                st.session_state.delta_t_pairs.pop(i)
+                st.rerun()
+            st.session_state.delta_t_pairs[i] = {'baseline': baseline, 'compare': compare}
+
+        if st.button("Add ΔT Pair"):
+            st.session_state.delta_t_pairs.append({'baseline': NO_COMPARISON_LABEL, 'compare': NO_COMPARISON_LABEL})
+            st.rerun()
+
+    spec_df = None
+    if selected_ics:
+        st.subheader("4. Key IC Specification Input")
+        if 'spec_df' not in st.session_state or set(st.session_state.spec_df['Component']) != set(selected_ics):
+            spec_data = [{"Component": ic, "Spec Type": SPEC_TYPE_TC_CALC, "Tj (°C)": None, "Rjc (°C/W)": None, "Pd (W)": None, "Ta Limit (°C)": None} for ic in selected_ics]
+            st.session_state.spec_df = pd.DataFrame(spec_data)
+        
+        edited_specs_df = st.data_editor(st.session_state.spec_df, key="spec_editor", hide_index=True, use_container_width=True,
+            column_config={
+                "Spec Type": st.column_config.SelectboxColumn("Spec Type", options=SPEC_TYPES, required=True),
+                "Component": st.column_config.TextColumn("Component", disabled=True),
+                "Tj (°C)": st.column_config.NumberColumn("Tj (°C)", format="%.2f"),
+                "Rjc (°C/W)": st.column_config.NumberColumn("Rjc (°C/W)", format="%.2f"),
+                "Pd (W)": st.column_config.NumberColumn("Pd (W)", format="%.2f"),
+                "Ta Limit (°C)": st.column_config.NumberColumn("Ta Limit (°C)", format="%.2f"),
+            })
+        spec_df = edited_specs_df
+
+    st.divider()
+    if st.button("🚀 Analyze Selected Data", use_container_width=True, type="primary"):
+        if not selected_series or not selected_ics: st.warning("Please select at least one configuration AND one Key IC.")
+        else:
+            delta_pairs_for_analysis = [pair for pair in st.session_state.delta_t_pairs if pair['baseline'] != NO_COMPARISON_LABEL and pair['compare'] != NO_COMPARISON_LABEL]
+            with st.spinner("Processing data..."):
+                st.session_state.cobra_analysis_results = run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics, spec_df, delta_pairs_for_analysis)
+
     if st.session_state.get('cobra_analysis_results'):
         results = st.session_state.cobra_analysis_results
         if results.get("error"): st.error(f"**Analysis Error:** {results['error']}")
@@ -404,10 +486,10 @@ def render_cobra_ui():
                 btn_col2.download_button("Download as Formatted Excel", data=excel_buf, file_name="cobra_results.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
             with res_tab3: 
                 st.subheader("Temperature Comparison Chart")
-                chart_data_numeric = results.get("chart_data")
+                df_chart_data = results.get("chart_data")
                 
-                fig_chart, ax = plt.subplots(figsize=(max(10, len(chart_data_numeric.index) * 0.8), 6))
-                chart_data_numeric[[s for s in selected_series if s in chart_data_numeric.columns]].plot(kind='bar', ax=ax, width=0.8); ax.set_ylabel("Temperature (°C)"); ax.set_title("Key IC Temperature Comparison"); plt.xticks(rotation=45, ha='right'); plt.grid(axis='y', linestyle='--', alpha=0.7); plt.tight_layout()
+                fig_chart, ax = plt.subplots(figsize=(max(10, len(df_chart_data.index) * 0.8), 6))
+                df_chart_data[[s for s in selected_series if s in df_chart_data.columns]].plot(kind='bar', ax=ax, width=0.8); ax.set_ylabel("Temperature (°C)"); ax.set_title("Key IC Temperature Comparison"); plt.xticks(rotation=45, ha='right'); plt.grid(axis='y', linestyle='--', alpha=0.7); plt.tight_layout()
                 st.pyplot(fig_chart)
                 
                 chart_buf = io.BytesIO(); fig_chart.savefig(chart_buf, format="png", dpi=300, bbox_inches='tight')
@@ -438,9 +520,16 @@ def render_structured_conclusions(conclusion_data):
             
             if item['series_results']:
                 series_results_df = pd.DataFrame(item['series_results'])
-                if 'temp' in series_results_df.columns:
-                    series_results_df['temp'] = series_results_df['temp'].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
-                st.dataframe(series_results_df.rename(columns={'series': 'Configuration', 'temp': 'Temp (°C)', 'result': 'Result'}), use_container_width=True, hide_index=True)
+                
+                # --- NEW: Build HTML table for styled output ---
+                html_table = "<table><tr><th>Configuration</th><th>Temp (°C)</th><th>Result</th></tr>"
+                for _, row in series_results_df.iterrows():
+                    res_text = row['result']
+                    res_color = "red" if res_text == "FAIL" else "lightgreen" if res_text == "PASS" else "white"
+                    temp_text = f"{row['temp']:.2f}" if pd.notna(row['temp']) else "N/A"
+                    html_table += f"<tr><td>{row['series']}</td><td>{temp_text}</td><td style='color:{res_color};'>{res_text}</td></tr>"
+                html_table += "</table>"
+                st.markdown(html_table, unsafe_allow_html=True)
             else:
                 st.caption("No temperature data to display (e.g., spec was not defined).")
 
@@ -457,3 +546,4 @@ if app_selection == "Viper - Risk analysis":
     render_viper_ui()
 elif app_selection == "Cobra - Data transformation":
     render_cobra_ui()
+
