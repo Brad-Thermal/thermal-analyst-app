@@ -1,11 +1,11 @@
-# Sercomm Tool Suite v18.4
+# Sercomm Tool Suite v18.5
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes:
+# - v18.5: CRITICAL FIX: Completely rewrote the Excel export function to handle data types explicitly, resolving the TypeError crash.
 # - v18.4: CRITICAL FIX: Rewrote the Excel export function to resolve a TypeError and prevent app crashes.
 # - v18.3: Increased the row height in the generated table image for better readability.
 # - v18.2: Reordered the results table to place 'Spec (°C)' next to 'Component' for easier comparison.
-# - v18.1: CRITICAL FIX: Resolved an analysis error by correctly managing the uploaded file's state.
 
 import streamlit as st
 import pandas as pd
@@ -235,11 +235,16 @@ def run_cobra_analysis(file_buffer, cobra_data, selected_series, selected_ics, s
             
             df_table_display = df_table_display[new_order]
 
-        for col in df_table_display.columns:
-            if df_table_display[col].dtype in ['float64', 'int64']:
-                df_table_display[col] = df_table_display[col].map(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
-
-        return {"table": df_table_display, "chart_data": df_table_numeric, "conclusion_data": conclusion_data}
+        # This dataframe is used for the Excel export and needs to retain numeric types
+        df_for_excel = df_table_display.copy()
+        
+        # This dataframe is for display where everything is a string
+        df_for_image = df_table_display.copy()
+        for col in df_for_image.columns:
+            if df_for_image[col].dtype in ['float64', 'int64']:
+                df_for_image[col] = df_for_image[col].map(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+        
+        return {"table_for_image": df_for_image, "table_for_excel": df_for_excel, "chart_data": df_table_numeric, "conclusion_data": conclusion_data}
     except Exception as e:
         return {"error": f"An error occurred during analysis: {e}"}
 
@@ -258,7 +263,8 @@ def generate_formatted_table_image(df_table):
 
     num_rows = len(df_plot)
     header_max_lines = max(label.count('\n') + 1 for label in wrapped_column_labels)
-    fig_height = (num_rows * 0.8) + (header_max_lines * 0.8) + 0.5
+    # Increased row height multiplier to 0.8
+    fig_height = (num_rows * 0.8) + (header_max_lines * 0.8) + 0.5 
     fig_width = 2.0 * len(column_labels)
     fig, ax = plt.subplots(figsize=(fig_width, fig_height))
     ax.axis('off'); ax.axis('tight')
@@ -282,46 +288,45 @@ def generate_formatted_table_image(df_table):
 
 def create_formatted_excel(df_table):
     output = io.BytesIO()
-    # Data is already formatted as strings, which is fine for Excel export.
     df_to_export = df_table.reset_index()
 
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         sheet_name = 'ThermalTableData'
-        # Let pandas write the data, which handles types robustly.
-        df_to_export.to_excel(writer, sheet_name=sheet_name, index=False)
-
-        # Get the workbook and worksheet objects
         workbook = writer.book
-        worksheet = writer.sheets[sheet_name]
+        worksheet = workbook.add_worksheet(sheet_name)
 
-        # Define formats
         header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'vcenter', 'align': 'center', 'fg_color': '#606060', 'font_color': 'white', 'border': 1})
         pass_format = workbook.add_format({'bg_color': PASS_COLOR_HEX, 'border': 1, 'align': 'center', 'valign': 'vcenter'})
         fail_format = workbook.add_format({'bg_color': FAIL_COLOR_HEX, 'border': 1, 'align': 'center', 'valign': 'vcenter'})
         center_format = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
-
-        # Apply a general center format to all data cells first
-        # This prevents issues with mixed types in a column
-        for row_num in range(1, len(df_to_export) + 1):
-            worksheet.set_row(row_num, cell_format=center_format)
-
-        # Apply header format
+        
         for col_num, value in enumerate(df_to_export.columns.values):
             worksheet.write(0, col_num, value, header_format)
 
-        # Apply conditional formatting for the 'Result' column
-        try:
-            result_col_idx = df_to_export.columns.get_loc("Result")
-            result_col_letter = chr(ord('A') + result_col_idx)
-            worksheet.conditional_format(f'{result_col_letter}2:{result_col_letter}{len(df_to_export)+1}',
-                                         {'type': 'cell', 'criteria': '==', 'value': '"PASS"', 'format': pass_format})
-            worksheet.conditional_format(f'{result_col_letter}2:{result_col_letter}{len(df_to_export)+1}',
-                                         {'type': 'cell', 'criteria': '==', 'value': '"FAIL"', 'format': fail_format})
-        except KeyError:
-            pass  # 'Result' column might not exist
+        for row_num, row_data in df_to_export.iterrows():
+            for col_num, cell_value in enumerate(row_data):
+                col_name = df_to_export.columns[col_num]
+                
+                # Default format is centered
+                current_format = center_format
+                if col_name == 'Result':
+                    if cell_value == 'PASS':
+                        current_format = pass_format
+                    elif cell_value == 'FAIL':
+                        current_format = fail_format
+                
+                # Check for number types explicitly
+                if isinstance(cell_value, (int, float)):
+                    if pd.notna(cell_value):
+                        worksheet.write_number(row_num + 1, col_num, cell_value, current_format)
+                    else:
+                        # Handles NaN
+                        worksheet.write_blank(row_num + 1, col_num, None, current_format)
+                else:
+                    # Treat everything else as a string
+                    worksheet.write_string(row_num + 1, col_num, str(cell_value), current_format)
 
-        # Set column widths
-        worksheet.set_column('A:A', 25) # Component
+        worksheet.set_column('A:A', 25)
         worksheet.set_column('B:Z', 18)
 
     output.seek(0)
@@ -565,11 +570,12 @@ def render_cobra_ui():
                 render_structured_conclusions(results.get("conclusion_data", []))
             with res_tab2:
                 st.subheader("數據總表")
-                table_fig = generate_formatted_table_image(results.get("table"))
+                # Pass the correct dataframe to the respective functions
+                table_fig = generate_formatted_table_image(results.get("table_for_image"))
                 st.pyplot(table_fig)
 
                 img_buf = io.BytesIO(); table_fig.savefig(img_buf, format="png", dpi=300, bbox_inches='tight')
-                excel_buf = create_formatted_excel(results.get("table"))
+                excel_buf = create_formatted_excel(results.get("table_for_excel"))
 
                 btn_col1, btn_col2 = st.columns(2)
                 btn_col1.download_button("下載表格 (PNG)", data=img_buf, file_name="cobra_table.png", mime="image/png", use_container_width=True)
