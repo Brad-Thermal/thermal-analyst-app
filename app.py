@@ -264,7 +264,7 @@ def generate_formatted_table_image(df_table):
 
     # --- FIX: Re-introduced manual width calculation ---
     # Adjust the multiplier (2.0) to make columns wider or narrower
-    fig_width = 2.5 * len(column_labels) 
+    fig_width = 3.0 * len(column_labels) 
     
     # Let matplotlib determine height based on content
     fig, ax = plt.subplots(figsize=(fig_width, 1)) # Height is initially small
@@ -279,7 +279,7 @@ def generate_formatted_table_image(df_table):
     for (row, col), cell in cells.items():
         cell.set_edgecolor('black')
         if row == 0:  # Header row
-            cell.set_height(0.3) # Taller header
+            cell.set_height(0.5) # Taller header
             cell.set_facecolor('#606060')
             cell.set_text_props(weight='bold', color='white')
         else:  # Data rows
