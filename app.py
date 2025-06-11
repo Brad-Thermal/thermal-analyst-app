@@ -264,13 +264,13 @@ def generate_formatted_table_image(df_table):
     num_rows = len(df_plot)
     header_max_lines = max(label.count('\n') + 1 for label in wrapped_column_labels)
     # Increased row height multiplier to 0.8
-    fig_height = (num_rows * 0.8) + (header_max_lines * 0.8) + 0.5 
+    fig_height = (num_rows * 1.0) + (header_max_lines * 1.0) + 0.5 
     fig_width = 2.0 * len(column_labels)
     fig, ax = plt.subplots(figsize=(fig_width, fig_height))
     ax.axis('off'); ax.axis('tight')
 
     table = ax.table(cellText=df_plot.values, colLabels=wrapped_column_labels, loc='center', cellLoc='center')
-    table.auto_set_font_size(False); table.set_fontsize(10)
+    table.auto_set_font_size(False); table.set_fontsize(12)
 
     cells = table.get_celld()
     for (row, col), cell in cells.items():
