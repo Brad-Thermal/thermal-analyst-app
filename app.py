@@ -1,12 +1,12 @@
-# Sercomm Tool Suite v17.0
+# Sercomm Tool Suite v18.0
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes:
+# - v18.0: Reverted UI to English per user request. Maintained enhanced selection controls.
+# - v18.0: Added 'Select All'/'Deselect All' buttons for a better bulk selection experience.
 # - v17.0: Reverted all UI elements in the Cobra module back to English.
 # - v16.0: Optimized the 'Analysis Parameters' section with compact and stylish multiselect components.
 # - v15.0: Redesigned the 'Cobra' UI for a more compact and efficient layout.
-# - v15.0: Implemented a tabbed interface for Analysis Parameters to reduce scrolling.
-# - v14.0: Fixed UI rendering bug in the 'Cobra' module's conclusion expanders.
 
 import streamlit as st
 import pandas as pd
@@ -212,13 +212,13 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
 
         df_table_display.columns = [f"{col} (°C)" for col in df_table_display.columns]
         if results:
-            df_table_display['Spec (°C)'] = [f"{res.get('spec_type', '')} = {res.get('spec', 'N/A'):.2f}" if pd.notna(res.get('spec')) else "N/A" for ic, res in results.items()]
+            df_table_display['Spec (°C)'] = [f"{results.get(ic, {}).get('spec_type', '')} = {results.get(ic, {}).get('spec', 'N/A'):.2f}" if pd.notna(results.get(ic, {}).get('spec')) else "N/A" for ic in df_table_display.index]
             df_table_display['Result'] = [results.get(ic, {}).get('result', 'N/A') for ic in df_table_display.index]
 
         for pair in delta_pairs:
             baseline, compare = pair['baseline'], pair['compare']
             if baseline != NO_COMPARISON_LABEL and compare != NO_COMPARISON_LABEL and baseline != compare:
-                if baseline in df_table_numeric and compare in df_table_numeric:
+                if baseline in df_table_numeric.columns and compare in df_table_numeric.columns:
                     temp_b = df_table_numeric[baseline]
                     temp_c = df_table_numeric[compare]
                     delta_col_name = f"{DELTA_SYMBOL}T ({baseline} - {compare}) (°C)"
@@ -416,6 +416,7 @@ def render_cobra_ui():
         st.subheader("Upload Excel File")
         uploaded_file = st.file_uploader("Drag and drop file here", type=["xlsx", "xls"], key="cobra_file_uploader", label_visibility="collapsed")
 
+    # --- Initialize session state for selections ---
     if 'cobra_prestudy_data' not in st.session_state: st.session_state.cobra_prestudy_data = {}
     if 'cobra_analysis_results' not in st.session_state: st.session_state.cobra_analysis_results = None
     if 'delta_t_pairs' not in st.session_state: st.session_state.delta_t_pairs = []
@@ -426,38 +427,64 @@ def render_cobra_ui():
             st.session_state.cobra_prestudy_data = cobra_pre_study(uploaded_file)
             st.session_state.cobra_analysis_results = None
             st.session_state.delta_t_pairs = []
-            if 'spec_df' in st.session_state: del st.session_state.spec_df
-
+            # Reset selections on new file upload
+            if 'series_selection' in st.session_state:
+                del st.session_state.series_selection
+            if 'ic_selection' in st.session_state:
+                del st.session_state.ic_selection
+            if 'spec_df' in st.session_state: 
+                del st.session_state.spec_df
+    
     cobra_data = st.session_state.get('cobra_prestudy_data', {})
-
-    selected_series = []
-    selected_ics = []
 
     with main_cols[1]:
         if not cobra_data.get("series_names"):
             st.info("Please upload an Excel file to begin analysis.")
-            return
+            st.stop()
         if cobra_data.get("error"):
-            st.error(cobra_data["error"]); return
+            st.error(cobra_data["error"])
+            st.stop()
 
+        if 'series_selection' not in st.session_state:
+            st.session_state.series_selection = cobra_data["series_names"]
+        if 'ic_selection' not in st.session_state:
+            st.session_state.ic_selection = []
+        
         st.subheader("Analysis Parameters")
-
         tab1, tab2, tab3 = st.tabs(["1. Select Configurations", "2. Select Key ICs", f"3. {DELTA_SYMBOL}T Comparison (Optional)"])
 
         with tab1:
+            st.write("Select configurations to analyze:")
+            btn_cols = st.columns(2)
+            if btn_cols[0].button("Select All", key="select_all_series", use_container_width=True):
+                st.session_state.series_selection = cobra_data["series_names"]
+            if btn_cols[1].button("Deselect All", key="deselect_all_series", use_container_width=True):
+                st.session_state.series_selection = []
+            
             selected_series = st.multiselect(
                 "Select configurations to analyze (multiple allowed):",
                 options=cobra_data["series_names"],
-                default=cobra_data["series_names"],
-                key="series_multiselect"
+                key="series_selection",
+                label_visibility="collapsed"
             )
+
         with tab2:
+            st.write("Select Key ICs to analyze:")
+            btn_cols = st.columns(2)
+            if btn_cols[0].button("Select All", key="select_all_ics", use_container_width=True):
+                st.session_state.ic_selection = cobra_data["component_names"]
+            if btn_cols[1].button("Deselect All", key="deselect_all_ics", use_container_width=True):
+                st.session_state.ic_selection = []
+
             selected_ics = st.multiselect(
                 "Select Key ICs to analyze (multiple allowed):",
                 options=cobra_data["component_names"],
-                key="ic_multiselect"
+                key="ic_selection",
+                label_visibility="collapsed"
             )
+            
         with tab3:
+            st.write(f"Set up {DELTA_SYMBOL}T comparisons (optional):")
             with st.container(height=280):
                 for i, pair in enumerate(st.session_state.delta_t_pairs):
                     pair_cols = st.columns([2, 2, 1])
@@ -474,7 +501,7 @@ def render_cobra_ui():
                     st.rerun()
 
     spec_df = None
-    if selected_ics:
+    if 'selected_ics' in locals() and selected_ics:
         st.subheader("4. Key IC Specification Input")
         if 'spec_df' not in st.session_state or set(st.session_state.spec_df['Component']) != set(selected_ics):
             spec_data = [{"Component": ic, "Spec Type": SPEC_TYPE_TC_CALC, "Tj (°C)": None, "Rjc (°C/W)": None, "Pd (W)": None, "Ta Limit (°C)": None} for ic in selected_ics]
@@ -596,7 +623,8 @@ app_selection = st.sidebar.radio("Select a Tool:", ("Cobra - Data Transformation
 st.sidebar.markdown("---")
 st.sidebar.info("A unified platform for Sercomm's engineering analysis tools.")
 
-if app_selection == "Viper - Risk Analysis":
-    render_viper_ui()
-elif app_selection == "Cobra - Data Transformation":
+if "Data Transformation" in app_selection:
     render_cobra_ui()
+elif "Risk Analysis" in app_selection:
+    render_viper_ui()
+
