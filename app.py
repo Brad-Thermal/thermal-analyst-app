@@ -1,11 +1,11 @@
-# Sercomm Tool Suite v19.7
+# Sercomm Tool Suite v19.8
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes:
+# - v19.8: CRITICAL FIX: Corrected the chart labeling logic to resolve the persistent AttributeError. Removed invalid arguments from the ax.text() function.
 # - v19.7: Reverted all UI elements to English per user request.
 # - v19.6: Improved chart readability by moving the legend outside the plot area and dynamically adjusting the y-axis.
 # - v19.5: CRITICAL FIX: Resolved an AttributeError in the chart generation by using the correct arguments for the text labeling function.
-# - v19.4: CRITICAL FIX: Corrected the 'Remove File' button logic to avoid a StreamlitAPIException.
 
 import streamlit as st
 import pandas as pd
@@ -613,16 +613,15 @@ def render_cobra_ui():
                     ax.set_ylabel("Temperature (°C)")
                     ax.set_title("Key IC Temperature Comparison")
 
-                    max_temp = df_chart_data_to_plot.max().max()
+                    max_temp = df_chart_data_to_plot.max().max() if not df_chart_data_to_plot.empty else 0
                     ax.set_ylim(top=max_temp * 1.15) 
 
                     for patch in ax.patches:
                         height = patch.get_height()
                         if pd.notna(height):
-                            ax.text(patch.get_x() + patch.get_width() / 2., height,
+                            ax.text(patch.get_x() + patch.get_width() / 2., height + 0.5,
                                     f'{height:.2f}',
-                                    ha='center', va='bottom',
-                                    xytext=(0, 3), textcoords='offset points')
+                                    ha='center', va='bottom')
 
                     plt.xticks(rotation=45, ha='right')
                     plt.grid(axis='y', linestyle='--', alpha=0.7)
