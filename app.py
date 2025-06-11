@@ -1,7 +1,8 @@
-# Sercomm Tool Suite v19.3
+# Sercomm Tool Suite v19.4
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes:
+# - v19.4: CRITICAL FIX: Corrected the 'Remove File' button logic to avoid a StreamlitAPIException by removing direct manipulation of the file_uploader state.
 # - v19.3: Added a 'Remove File' button to the Cobra UI to clear all loaded data and reset the state.
 # - v19.2: Added data labels to the top of each bar in the Cobra results chart for readability.
 # - v19.2: Added 'Surface Area' output (in m²) to the Viper natural convection results.
@@ -458,7 +459,7 @@ def render_cobra_ui():
         uploader_cols = st.columns([0.7, 0.3])
         uploaded_file = uploader_cols[0].file_uploader("Drag and drop file here", type=["xlsx", "xls"], key="cobra_file_uploader", label_visibility="collapsed")
         
-        # --- NEW: Remove File Button Logic ---
+        # FIX: "Remove File" button logic
         if uploader_cols[1].button("Remove", use_container_width=True):
             keys_to_clear = [
                 'cobra_prestudy_data', 'cobra_analysis_results', 'delta_t_pairs', 
@@ -468,8 +469,7 @@ def render_cobra_ui():
             for key in keys_to_clear:
                 if key in st.session_state:
                     del st.session_state[key]
-            # Clear the file uploader widget state
-            st.session_state.cobra_file_uploader = None
+            # No need to touch cobra_file_uploader, Streamlit handles it.
             st.rerun()
 
 
@@ -615,7 +615,6 @@ def render_cobra_ui():
                     ax.set_ylabel("Temperature (°C)")
                     ax.set_title("Key IC Temperature Comparison")
 
-                    # Add data labels to bars
                     for patch in ax.patches:
                         height = patch.get_height()
                         if pd.notna(height):
