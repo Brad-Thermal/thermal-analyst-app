@@ -264,7 +264,7 @@ def generate_formatted_table_image(df_table):
     num_rows = len(df_plot)
     header_max_lines = max(label.count('\n') + 1 for label in wrapped_column_labels)
     # Increased row height multiplier to 0.8
-    fig_height = (num_rows * 2.0) + (header_max_lines * 1.0) + 1.5 
+    fig_height = (num_rows * 3.0) + (header_max_lines * 3.0) + 3.0 
     fig_width = 2.0 * len(column_labels)
     fig, ax = plt.subplots(figsize=(fig_width, fig_height))
     ax.axis('off'); ax.axis('tight')
