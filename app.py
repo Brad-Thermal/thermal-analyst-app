@@ -1,10 +1,10 @@
-# Sercomm Tool Suite v19.2
+# Sercomm Tool Suite v19.3
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes:
+# - v19.3: Added a 'Remove File' button to the Cobra UI to clear all loaded data and reset the state.
 # - v19.2: Added data labels to the top of each bar in the Cobra results chart for readability.
 # - v19.2: Added 'Surface Area' output (in m²) to the Viper natural convection results.
-# - v19.1: Based on user's preferred version with table image formatting optimizations.
 
 import streamlit as st
 import pandas as pd
@@ -455,7 +455,23 @@ def render_cobra_ui():
 
     with main_cols[0]:
         st.subheader("Upload Excel File")
-        uploaded_file = st.file_uploader("Drag and drop file here", type=["xlsx", "xls"], key="cobra_file_uploader", label_visibility="collapsed")
+        uploader_cols = st.columns([0.7, 0.3])
+        uploaded_file = uploader_cols[0].file_uploader("Drag and drop file here", type=["xlsx", "xls"], key="cobra_file_uploader", label_visibility="collapsed")
+        
+        # --- NEW: Remove File Button Logic ---
+        if uploader_cols[1].button("Remove", use_container_width=True):
+            keys_to_clear = [
+                'cobra_prestudy_data', 'cobra_analysis_results', 'delta_t_pairs', 
+                'uploaded_file_buffer', 'cobra_filename', 'series_selection', 
+                'ic_selection', 'spec_df'
+            ]
+            for key in keys_to_clear:
+                if key in st.session_state:
+                    del st.session_state[key]
+            # Clear the file uploader widget state
+            st.session_state.cobra_file_uploader = None
+            st.rerun()
+
 
     if 'cobra_prestudy_data' not in st.session_state: st.session_state.cobra_prestudy_data = {}
     if 'cobra_analysis_results' not in st.session_state: st.session_state.cobra_analysis_results = None
