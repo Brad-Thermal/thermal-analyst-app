@@ -1,10 +1,10 @@
-# Sercomm Tool Suite v18.3
+# Sercomm Tool Suite v18.4
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes:
+# - v18.4: CRITICAL FIX: Rewrote the Excel export function to resolve a TypeError and prevent app crashes.
 # - v18.3: Increased the row height in the generated table image for better readability.
 # - v18.2: Reordered the results table to place 'Spec (°C)' next to 'Component' for easier comparison.
-# - v18.2: Reverted UI to Traditional Chinese per user request.
 # - v18.1: CRITICAL FIX: Resolved an analysis error by correctly managing the uploaded file's state.
 
 import streamlit as st
@@ -258,8 +258,7 @@ def generate_formatted_table_image(df_table):
 
     num_rows = len(df_plot)
     header_max_lines = max(label.count('\n') + 1 for label in wrapped_column_labels)
-    # Changed 0.4 to 0.8 to increase row height
-    fig_height = (num_rows * 1.2) + (header_max_lines * 1.2) + 0.5
+    fig_height = (num_rows * 0.8) + (header_max_lines * 0.8) + 0.5
     fig_width = 2.0 * len(column_labels)
     fig, ax = plt.subplots(figsize=(fig_width, fig_height))
     ax.axis('off'); ax.axis('tight')
@@ -283,50 +282,51 @@ def generate_formatted_table_image(df_table):
 
 def create_formatted_excel(df_table):
     output = io.BytesIO()
+    # Data is already formatted as strings, which is fine for Excel export.
+    df_to_export = df_table.reset_index()
+
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         sheet_name = 'ThermalTableData'
-        df_to_export = df_table.reset_index()
-
-        for col in df_to_export.columns:
-            if col != 'Component' and col != 'Result' and not col.startswith(f"{DELTA_SYMBOL}T"):
-                 # Attempt to convert relevant columns to numeric, but ignore errors for mixed types
-                df_to_export[col] = pd.to_numeric(df_to_export[col].astype(str).str.extract(r'(\d+\.?\d*)', expand=False), errors='ignore')
-
+        # Let pandas write the data, which handles types robustly.
         df_to_export.to_excel(writer, sheet_name=sheet_name, index=False)
 
-        workbook, worksheet = writer.book, writer.sheets[sheet_name]
+        # Get the workbook and worksheet objects
+        workbook = writer.book
+        worksheet = writer.sheets[sheet_name]
+
+        # Define formats
         header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'vcenter', 'align': 'center', 'fg_color': '#606060', 'font_color': 'white', 'border': 1})
         pass_format = workbook.add_format({'bg_color': PASS_COLOR_HEX, 'border': 1, 'align': 'center', 'valign': 'vcenter'})
         fail_format = workbook.add_format({'bg_color': FAIL_COLOR_HEX, 'border': 1, 'align': 'center', 'valign': 'vcenter'})
         center_format = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
 
+        # Apply a general center format to all data cells first
+        # This prevents issues with mixed types in a column
+        for row_num in range(1, len(df_to_export) + 1):
+            worksheet.set_row(row_num, cell_format=center_format)
 
+        # Apply header format
         for col_num, value in enumerate(df_to_export.columns.values):
             worksheet.write(0, col_num, value, header_format)
 
-        for row_num, row_data in df_to_export.iterrows():
-            for col_num, cell_value in enumerate(row_data):
-                if df_to_export.columns[col_num] == 'Result':
-                    if cell_value == 'PASS':
-                        worksheet.write(row_num + 1, col_num, cell_value, pass_format)
-                    elif cell_value == 'FAIL':
-                        worksheet.write(row_num + 1, col_num, cell_value, fail_format)
-                    else:
-                        worksheet.write(row_num + 1, col_num, cell_value, center_format)
-                else:
-                    worksheet.write(row_num + 1, col_num, cell_value, center_format)
-
+        # Apply conditional formatting for the 'Result' column
         try:
             result_col_idx = df_to_export.columns.get_loc("Result")
             result_col_letter = chr(ord('A') + result_col_idx)
-            worksheet.conditional_format(f'{result_col_letter}2:{result_col_letter}{len(df_to_export)+1}', {'type': 'cell', 'criteria': '==', 'value': '"PASS"', 'format': pass_format})
-            worksheet.conditional_format(f'{result_col_letter}2:{result_col_letter}{len(df_to_export)+1}', {'type': 'cell', 'criteria': '==', 'value': '"FAIL"', 'format': fail_format})
-        except KeyError: pass
+            worksheet.conditional_format(f'{result_col_letter}2:{result_col_letter}{len(df_to_export)+1}',
+                                         {'type': 'cell', 'criteria': '==', 'value': '"PASS"', 'format': pass_format})
+            worksheet.conditional_format(f'{result_col_letter}2:{result_col_letter}{len(df_to_export)+1}',
+                                         {'type': 'cell', 'criteria': '==', 'value': '"FAIL"', 'format': fail_format})
+        except KeyError:
+            pass  # 'Result' column might not exist
 
-        worksheet.set_column('A:A', 25)
+        # Set column widths
+        worksheet.set_column('A:A', 25) # Component
         worksheet.set_column('B:Z', 18)
+
     output.seek(0)
     return output
+
 
 # --- ======================================================================= ---
 # ---                        APPLICATION UI FUNCTIONS                         ---
