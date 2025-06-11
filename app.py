@@ -272,7 +272,7 @@ def generate_formatted_table_image(df_table):
 
     table = ax.table(cellText=df_plot.values, colLabels=wrapped_column_labels, loc='center', cellLoc='center')
     table.auto_set_font_size(False)
-    table.set_fontsize(12)
+    table.set_fontsize(13.5)
 
     # Manually set cell heights for better control
     cells = table.get_celld()
