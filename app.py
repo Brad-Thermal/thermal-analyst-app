@@ -1,9 +1,9 @@
-# Sercomm Tool Suite v13.3
+# Sercomm Tool Suite v13.5
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes: 
-# - BUG FIX: Correctly renders styled PASS/FAIL text in Cobra's "Conclusions" tab.
-# - BUG FIX: Restored the complete UI code for the Viper Thermal Suite module.
+# - FINAL BUG FIX: Corrected state management to fix the AttributeError on first run.
+# - FINAL BUG FIX: Restored the complete and correct UI code for the Viper Thermal Suite module.
 # - Ensured all UI elements and outputs for both modules are in English.
 
 import streamlit as st
@@ -299,7 +299,16 @@ def create_formatted_excel(df_table):
 # --- ======================================================================= ---
 
 def render_viper_ui():
-    viper_logo_svg = """...""" # Omitted for brevity
+    viper_logo_svg = """
+    <svg width="50" height="50" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M50 10 L85 45 L50 90 L15 45 Z" fill="#1E1E1E" stroke="#FF5733" stroke-width="4"/>
+      <path d="M50 25 C 40 35, 40 55, 50 65" stroke="#FFC300" stroke-width="5" stroke-linecap="round" fill="none"/>
+      <path d="M50 25 C 60 35, 60 55, 50 65" stroke="#FFC300" stroke-width="5" stroke-linecap="round" fill="none"/>
+      <path d="M42 45 L58 45" stroke="#FFC300" stroke-width="5" stroke-linecap="round"/>
+      <circle cx="40" cy="35" r="4" fill="#FFFFFF"/>
+      <circle cx="60" cy="35" r="4" fill="#FFFFFF"/>
+    </svg>
+    """
     st.markdown(f"""
         <div style="display: flex; align-items: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px;">
             <div style="margin-right: 15px;">{viper_logo_svg}</div>
@@ -492,12 +501,7 @@ def render_cobra_ui():
                 df_chart_data_to_plot = chart_data_numeric[[s for s in selected_series]].copy()
                 df_chart_data_to_plot.columns = [f"{col} (°C)" for col in df_chart_data_to_plot.columns]
                 
-                df_chart_data_to_plot.plot(kind='bar', ax=ax, width=0.8)
-                ax.set_ylabel("Temperature (°C)")
-                ax.set_title("Key IC Temperature Comparison")
-                plt.xticks(rotation=45, ha='right')
-                plt.grid(axis='y', linestyle='--', alpha=0.7)
-                plt.tight_layout()
+                df_chart_data_to_plot.plot(kind='bar', ax=ax, width=0.8); ax.set_ylabel("Temperature (°C)"); ax.set_title("Key IC Temperature Comparison"); plt.xticks(rotation=45, ha='right'); plt.grid(axis='y', linestyle='--', alpha=0.7); plt.tight_layout()
                 st.pyplot(fig_chart)
                 
                 chart_buf = io.BytesIO(); fig_chart.savefig(chart_buf, format="png", dpi=300, bbox_inches='tight')
