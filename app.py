@@ -1,10 +1,10 @@
-# Sercomm Tool Suite v19.9
+# Sercomm Tool Suite v19.10
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes:
+# - v19.10: Reverted UI to English per user request.
 # - v19.9: Changed chart data labels to one decimal place and added a fontsize parameter for easy adjustment.
 # - v19.8: CRITICAL FIX: Corrected the chart labeling logic to resolve the persistent AttributeError.
-# - v19.7: Reverted all UI elements to English per user request.
 # - v19.6: Improved chart readability by moving the legend outside the plot area and dynamically adjusting the y-axis.
 
 import streamlit as st
@@ -359,7 +359,7 @@ def render_viper_ui():
             <div style="margin-right: 15px;">{viper_logo_svg}</div>
             <div>
                 <h1 style="margin-bottom: 0; color: #FFFFFF;">Viper</h1>
-                <p style="margin-top: 0; color: #AAAAAA;">風險分析</p>
+                <p style="margin-top: 0; color: #AAAAAA;">Risk Analysis</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -367,69 +367,69 @@ def render_viper_ui():
     natural_convection_materials = {"Plastic (ABS/PC)": {"emissivity": 0.90, "k_uniform": 0.65}, "Aluminum (Anodized)": {"emissivity": 0.85, "k_uniform": 0.90}}
     solar_absorptivity_materials = {"White (Paint)": {"absorptivity": 0.25}, "Silver (Paint)": {"absorptivity": 0.40}, "Dark Gray": {"absorptivity": 0.80}, "Black (Plastic/Paint)": {"absorptivity": 0.95}}
 
-    tab_nat, tab_force, tab_solar = st.tabs(["🍃 自然散熱", "🌬️ 強制散熱", "☀️ 太陽輻射"])
+    tab_nat, tab_force, tab_solar = st.tabs(["🍃 Natural Convection", "🌬️ Forced Convection", "☀️ Solar Radiation"])
 
     with tab_nat:
-        st.header("被動散熱能力估算")
+        st.header("Passive Cooling Power Estimator")
         col_nat_input, col_nat_result = st.columns(2, gap="large")
         with col_nat_input:
-            st.subheader("輸入參數")
-            nc_material_name = st.selectbox("外殼材質", options=list(natural_convection_materials.keys()), key="nc_mat")
-            st.markdown("**產品尺寸 (mm)**")
+            st.subheader("Input Parameters")
+            nc_material_name = st.selectbox("Enclosure Material", options=list(natural_convection_materials.keys()), key="nc_mat")
+            st.markdown("**Product Dimensions (mm)**")
             dim_col1, dim_col2, dim_col3 = st.columns(3)
-            with dim_col1: nc_dim_L = st.number_input("長 (L)", 1.0, 1000.0, 200.0, 10.0, "%.1f", key="nc_l")
-            with dim_col2: nc_dim_W = st.number_input("寬 (W)", 1.0, 1000.0, 150.0, 10.0, "%.1f", key="nc_w")
-            with dim_col3: nc_dim_H = st.number_input("高 (H)", 1.0, 500.0, 50.0, 5.0, "%.1f", key="nc_h")
-            st.markdown("**操作環境 (°C)**")
+            with dim_col1: nc_dim_L = st.number_input("Length (L)", 1.0, 1000.0, 200.0, 10.0, "%.1f", key="nc_l")
+            with dim_col2: nc_dim_W = st.number_input("Width (W)", 1.0, 1000.0, 150.0, 10.0, "%.1f", key="nc_w")
+            with dim_col3: nc_dim_H = st.number_input("Height (H)", 1.0, 500.0, 50.0, 5.0, "%.1f", key="nc_h")
+            st.markdown("**Operating Conditions (°C)**")
             op_cond_col1, op_cond_col2 = st.columns(2)
-            with op_cond_col1: nc_temp_ambient = st.number_input("環境溫度 (Ta)", 0, 60, 25, key="nc_ta")
-            with op_cond_col2: nc_temp_surface_peak = st.number_input("最高表面溫度 (Ts)", nc_temp_ambient + 1, 100, 50, key="nc_ts")
+            with op_cond_col1: nc_temp_ambient = st.number_input("Ambient Temp (Ta)", 0, 60, 25, key="nc_ta")
+            with op_cond_col2: nc_temp_surface_peak = st.number_input("Max. Surface Temp (Ts)", nc_temp_ambient + 1, 100, 50, key="nc_ts")
         with col_nat_result:
-            st.subheader("分析結果")
+            st.subheader("Evaluation Result")
             selected_material_props_nc = natural_convection_materials[nc_material_name]
             nc_results = calculate_natural_convection(nc_dim_L, nc_dim_W, nc_dim_H, nc_temp_surface_peak, nc_temp_ambient, selected_material_props_nc)
             if nc_results.get("error"): 
-                st.error(f"**錯誤:** {nc_results['error']}")
+                st.error(f"**Error:** {nc_results['error']}")
             else:
-                st.metric(label="📐 總表面積", value=f"{nc_results['surface_area']:.4f} m²")
-                st.metric(label="✅ 最大散熱功率", value=f"{nc_results['total_power']:.2f} W", help="此結果包含內建的材料均勻度與固定的工程安全係數 (0.9)。")
+                st.metric(label="📐 Surface Area", value=f"{nc_results['surface_area']:.4f} m²")
+                st.metric(label="✅ Max. Dissipatable Power", value=f"{nc_results['total_power']:.2f} W", help="This result includes built-in material uniformity and a fixed engineering safety factor (0.9).")
 
     with tab_force:
-        st.header("主動散熱風量估算")
+        st.header("Active Cooling Airflow Estimator")
         col_force_input, col_force_result = st.columns(2, gap="large")
         with col_force_input:
-            st.subheader("輸入參數")
-            fc_power_q = st.number_input("需散熱瓦數 (Q, W)", 0.1, value=50.0, step=1.0, format="%.1f", help="風扇需要移除的總熱量 (單位：瓦)。")
-            fc_temp_in = st.number_input("入風口溫度 (Tin, °C)", 0, 60, 25, key="fc_tin")
-            fc_temp_out = st.number_input("最高出風口溫度 (Tout, °C)", fc_temp_in + 1, 100, 45, key="fc_tout")
-            st.subheader("主要公式")
+            st.subheader("Input Parameters")
+            fc_power_q = st.number_input("Power to Dissipate (Q, W)", 0.1, value=50.0, step=1.0, format="%.1f", help="The total heat (in Watts) that the fan must remove.")
+            fc_temp_in = st.number_input("Inlet Air Temp (Tin, °C)", 0, 60, 25, key="fc_tin")
+            fc_temp_out = st.number_input("Max. Outlet Temp (Tout, °C)", fc_temp_in + 1, 100, 45, key="fc_tout")
+            st.subheader("Governing Equation")
             st.latex(r"Q = \dot{m} \cdot C_p \cdot \Delta T")
         with col_force_result:
-            st.subheader("分析結果")
+            st.subheader("Evaluation Result")
             fc_results = calculate_forced_convection(fc_power_q, fc_temp_in, fc_temp_out)
-            if fc_results.get("error"): st.error(f"**錯誤:** {fc_results['error']}")
-            else: st.metric(label="🌬️ 所需風量", value=f"{fc_results['cfm']:.2f} CFM", help="CFM: 立方英尺每分鐘。")
+            if fc_results.get("error"): st.error(f"**Error:** {fc_results['error']}")
+            else: st.metric(label="🌬️ Required Airflow", value=f"{fc_results['cfm']:.2f} CFM", help="CFM: Cubic Feet per Minute.")
 
     with tab_solar:
-        st.header("太陽輻射熱增益估算")
+        st.header("Solar Heat Gain Estimator")
         col_solar_input, col_solar_result = st.columns(2, gap="large")
         with col_solar_input:
-            st.subheader("輸入參數")
-            solar_material_name = st.selectbox("外殼顏色/材質", options=list(solar_absorptivity_materials.keys()) + ["其它..."], key="solar_mat")
-            if solar_material_name == "其它...":
-                alpha_val = st.number_input("自訂吸收率 (α)", 0.0, 1.0, 0.5, 0.05)
+            st.subheader("Input Parameters")
+            solar_material_name = st.selectbox("Enclosure Color/Finish", options=list(solar_absorptivity_materials.keys()) + ["Other..."], key="solar_mat")
+            if solar_material_name == "Other...":
+                alpha_val = st.number_input("Custom Absorptivity (α)", 0.0, 1.0, 0.5, 0.05)
             else:
                 alpha_val = solar_absorptivity_materials[solar_material_name]["absorptivity"]
-                st.number_input("對應吸收率 (α)", value=alpha_val, disabled=True)
-            projected_area_mm2 = st.number_input("投影表面積 (mm²)", 0.0, value=30000.0, step=1000.0, format="%.1f")
-            solar_irradiance_val = st.number_input("太陽輻射通量 (W/m²)", 0, value=1000, step=50)
-            st.subheader("主要公式")
+                st.number_input("Corresponding Absorptivity (α)", value=alpha_val, disabled=True)
+            projected_area_mm2 = st.number_input("Projected Surface Area (mm²)", 0.0, value=30000.0, step=1000.0, format="%.1f")
+            solar_irradiance_val = st.number_input("Solar Irradiance (W/m²)", 0, value=1000, step=50)
+            st.subheader("Governing Equation")
             st.latex(r"Q_{solar} = \alpha \cdot A_{proj} \cdot G_{solar}")
         with col_solar_result:
-            st.subheader("分析結果")
+            st.subheader("Evaluation Result")
             solar_results = calculate_solar_gain(projected_area_mm2, alpha_val, solar_irradiance_val)
-            if solar_results.get("error"): st.error(f"**錯誤:** {solar_results['error']}")
-            else: st.metric(label="☀️ 吸收太陽熱增益", value=f"{solar_results['solar_gain']:.2f} W")
+            if solar_results.get("error"): st.error(f"**Error:** {solar_results['error']}")
+            else: st.metric(label="☀️ Absorbed Solar Heat Gain", value=f"{solar_results['solar_gain']:.2f} W")
 
 def render_cobra_ui():
     cobra_logo_svg = """
@@ -447,7 +447,7 @@ def render_cobra_ui():
             <div style="margin-right: 15px;">{cobra_logo_svg}</div>
             <div>
                 <h1 style="margin-bottom: 0; color: #FFFFFF;">Cobra</h1>
-                <p style="margin-top: 0; color: #AAAAAA;">數據轉換與分析</p>
+                <p style="margin-top: 0; color: #AAAAAA;">Data Transformation & Analysis</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -455,11 +455,11 @@ def render_cobra_ui():
     main_cols = st.columns([0.4, 0.6], gap="large")
 
     with main_cols[0]:
-        st.subheader("上傳 Excel 檔案")
+        st.subheader("Upload Excel File")
         uploader_cols = st.columns([0.7, 0.3])
-        uploaded_file = uploader_cols[0].file_uploader("拖曳檔案至此", type=["xlsx", "xls"], key="cobra_file_uploader", label_visibility="collapsed")
+        uploaded_file = uploader_cols[0].file_uploader("Drag and drop file here", type=["xlsx", "xls"], key="cobra_file_uploader", label_visibility="collapsed")
         
-        if uploader_cols[1].button("移除檔案", use_container_width=True):
+        if uploader_cols[1].button("Remove", use_container_width=True):
             keys_to_clear = [
                 'cobra_prestudy_data', 'cobra_analysis_results', 'delta_t_pairs', 
                 'uploaded_file_buffer', 'cobra_filename', 'series_selection', 
@@ -480,7 +480,7 @@ def render_cobra_ui():
     if uploaded_file and st.session_state.get('cobra_filename') != uploaded_file.name:
         st.session_state.cobra_filename = uploaded_file.name
         st.session_state.uploaded_file_buffer = uploaded_file.getvalue()
-        with st.spinner('正在預先分析 Excel 檔案...'):
+        with st.spinner('Pre-analyzing Excel file...'):
             st.session_state.cobra_prestudy_data = cobra_pre_study(io.BytesIO(st.session_state.uploaded_file_buffer))
             st.session_state.cobra_analysis_results = None
             st.session_state.delta_t_pairs = []
@@ -492,7 +492,7 @@ def render_cobra_ui():
 
     with main_cols[1]:
         if not cobra_data.get("series_names"):
-            st.info("請上傳 Excel 檔案以開始分析。")
+            st.info("Please upload an Excel file to begin analysis.")
             st.stop()
         if cobra_data.get("error"):
             st.error(cobra_data["error"])
@@ -503,59 +503,59 @@ def render_cobra_ui():
         if 'ic_selection' not in st.session_state:
             st.session_state.ic_selection = []
         
-        st.subheader("分析參數")
-        tab1, tab2, tab3 = st.tabs(["1. 選擇設定", "2. 選擇關鍵IC", f"3. {DELTA_SYMBOL}T 比較 (選填)"])
+        st.subheader("Analysis Parameters")
+        tab1, tab2, tab3 = st.tabs(["1. Select Configurations", "2. Select Key ICs", f"3. {DELTA_SYMBOL}T Comparison (Optional)"])
 
         with tab1:
-            st.write("選擇要分析的設定:")
+            st.write("Select configurations to analyze:")
             btn_cols = st.columns(2)
-            if btn_cols[0].button("全選", key="select_all_series", use_container_width=True):
+            if btn_cols[0].button("Select All", key="select_all_series", use_container_width=True):
                 st.session_state.series_selection = cobra_data["series_names"]
-            if btn_cols[1].button("全部取消", key="deselect_all_series", use_container_width=True):
+            if btn_cols[1].button("Clear All", key="deselect_all_series", use_container_width=True):
                 st.session_state.series_selection = []
             
             selected_series = st.multiselect(
-                "選擇要分析的設定 (可多選):",
+                "Select configurations to analyze (multiple allowed):",
                 options=cobra_data["series_names"],
                 key="series_selection",
                 label_visibility="collapsed"
             )
 
         with tab2:
-            st.write("選擇要分析的關鍵IC:")
+            st.write("Select Key ICs to analyze:")
             btn_cols = st.columns(2)
-            if btn_cols[0].button("全選", key="select_all_ics", use_container_width=True):
+            if btn_cols[0].button("Select All", key="select_all_ics", use_container_width=True):
                 st.session_state.ic_selection = cobra_data["component_names"]
-            if btn_cols[1].button("全部取消", key="deselect_all_ics", use_container_width=True):
+            if btn_cols[1].button("Clear All", key="deselect_all_ics", use_container_width=True):
                 st.session_state.ic_selection = []
 
             selected_ics = st.multiselect(
-                "選擇要分析的關鍵IC (可多選):",
+                "Select Key ICs to analyze (multiple allowed):",
                 options=cobra_data["component_names"],
                 key="ic_selection",
                 label_visibility="collapsed"
             )
             
         with tab3:
-            st.write(f"設定 {DELTA_SYMBOL}T 比較 (選填):")
+            st.write(f"Set up {DELTA_SYMBOL}T comparisons (optional):")
             with st.container(height=280):
                 for i, pair in enumerate(st.session_state.delta_t_pairs):
                     pair_cols = st.columns([2, 2, 1])
                     baseline_options = [NO_COMPARISON_LABEL] + selected_series if selected_series else [NO_COMPARISON_LABEL]
-                    baseline = pair_cols[0].selectbox(f"基準:", baseline_options, key=f"delta_b_{i}")
-                    compare = pair_cols[1].selectbox(f"比較對象:", baseline_options, key=f"delta_c_{i}")
-                    if pair_cols[2].button("移除", key=f"remove_delta_{i}"):
+                    baseline = pair_cols[0].selectbox(f"Baseline:", baseline_options, key=f"delta_b_{i}")
+                    compare = pair_cols[1].selectbox(f"Compare to:", baseline_options, key=f"delta_c_{i}")
+                    if pair_cols[2].button("Remove", key=f"remove_delta_{i}"):
                         st.session_state.delta_t_pairs.pop(i)
                         st.rerun()
                     st.session_state.delta_t_pairs[i] = {'baseline': baseline, 'compare': compare}
 
-                if st.button("新增 ΔT 比較"):
+                if st.button("Add ΔT Pair"):
                     st.session_state.delta_t_pairs.append({'baseline': NO_COMPARISON_LABEL, 'compare': NO_COMPARISON_LABEL})
                     st.rerun()
 
     spec_df = None
     if 'selected_ics' in locals() and selected_ics:
-        st.subheader("4. 關鍵IC規格輸入")
+        st.subheader("4. Key IC Specification Input")
         if 'spec_df' not in st.session_state or set(st.session_state.spec_df['Component']) != set(selected_ics):
             spec_data = [{"Component": ic, "Spec Type": SPEC_TYPE_TC_CALC, "Tj (°C)": None, "Rjc (°C/W)": None, "Pd (W)": None, "Ta Limit (°C)": None} for ic in selected_ics]
             st.session_state.spec_df = pd.DataFrame(spec_data)
@@ -572,26 +572,26 @@ def render_cobra_ui():
         spec_df = edited_specs_df
 
     st.divider()
-    if st.button("🚀 開始分析", use_container_width=True, type="primary"):
-        if not selected_series or not selected_ics: st.warning("請至少選擇一個設定 (Configuration) 和一個關鍵IC (Key IC)。")
+    if st.button("🚀 Analyze Selected Data", use_container_width=True, type="primary"):
+        if not selected_series or not selected_ics: st.warning("Please select at least one configuration AND one Key IC.")
         elif st.session_state.uploaded_file_buffer is None:
-            st.error("檔案遺失，請重新上傳檔案。")
+            st.error("File buffer is missing. Please re-upload the file.")
         else:
             delta_pairs_for_analysis = [pair for pair in st.session_state.delta_t_pairs if pair['baseline'] != NO_COMPARISON_LABEL and pair['compare'] != NO_COMPARISON_LABEL]
-            with st.spinner("正在處理數據..."):
+            with st.spinner("Processing data..."):
                 file_buffer = io.BytesIO(st.session_state.uploaded_file_buffer)
                 st.session_state.cobra_analysis_results = run_cobra_analysis(file_buffer, cobra_data, selected_series, selected_ics, spec_df, delta_pairs_for_analysis)
 
     if st.session_state.get('cobra_analysis_results'):
         results = st.session_state.cobra_analysis_results
-        if results.get("error"): st.error(f"**分析錯誤:** {results['error']}")
+        if results.get("error"): st.error(f"**Analysis Error:** {results['error']}")
         else:
-            st.header("分析結果")
-            res_tab1, res_tab2, res_tab3 = st.tabs(["**結論**", "**表格**", "**圖表**"])
+            st.header("Analysis Results")
+            res_tab1, res_tab2, res_tab3 = st.tabs(["**Conclusions**", "**Table**", "**Chart**"])
             with res_tab1:
                 render_structured_conclusions(results.get("conclusion_data", []))
             with res_tab2:
-                st.subheader("數據總表")
+                st.subheader("Formatted Data Table")
                 table_fig = generate_formatted_table_image(results.get("table_for_image"))
                 st.pyplot(table_fig)
 
@@ -599,10 +599,10 @@ def render_cobra_ui():
                 excel_buf = create_formatted_excel(results.get("table_for_excel"))
 
                 btn_col1, btn_col2 = st.columns(2)
-                btn_col1.download_button("下載表格 (PNG)", data=img_buf, file_name="cobra_table.png", mime="image/png", use_container_width=True)
-                btn_col2.download_button("下載為 Excel", data=excel_buf, file_name="cobra_results.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+                btn_col1.download_button("Download Table as PNG", data=img_buf, file_name="cobra_table.png", mime="image/png", use_container_width=True)
+                btn_col2.download_button("Download as Formatted Excel", data=excel_buf, file_name="cobra_results.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
             with res_tab3:
-                st.subheader("溫度比較圖")
+                st.subheader("Temperature Comparison Chart")
                 chart_data_numeric = results.get("chart_data")
 
                 if chart_data_numeric is not None and not chart_data_numeric.empty:
@@ -610,8 +610,8 @@ def render_cobra_ui():
                     
                     fig_chart, ax = plt.subplots(figsize=(max(10, len(chart_data_numeric.index) * 0.8), 6))
                     df_chart_data_to_plot.plot(kind='bar', ax=ax, width=0.8, legend=False)
-                    ax.set_ylabel("溫度 (°C)")
-                    ax.set_title("關鍵IC溫度比較")
+                    ax.set_ylabel("Temperature (°C)")
+                    ax.set_title("Key IC Temperature Comparison")
 
                     max_temp = df_chart_data_to_plot.max().max() if not df_chart_data_to_plot.empty else 0
                     ax.set_ylim(top=max_temp * 1.15) 
@@ -619,7 +619,7 @@ def render_cobra_ui():
                     for patch in ax.patches:
                         height = patch.get_height()
                         if pd.notna(height):
-                            ax.text(patch.get_x() + patch.get_width() / 2., height,
+                            ax.text(patch.get_x() + patch.get_width() / 2., height + 0.5,
                                     f'{height:.1f}',
                                     ha='center', va='bottom', fontsize=12)
 
@@ -634,44 +634,44 @@ def render_cobra_ui():
 
                     chart_buf = io.BytesIO()
                     fig_chart.savefig(chart_buf, format="png", dpi=300, bbox_inches='tight')
-                    st.download_button("下載圖表 (PNG)", data=chart_buf, file_name="cobra_chart.png", mime="image/png", use_container_width=True)
+                    st.download_button("Download Chart as PNG", data=chart_buf, file_name="cobra_chart.png", mime="image/png", use_container_width=True)
                 else:
-                    st.warning("選定的設定沒有可繪製的數據。")
+                    st.warning("No data available to plot for the selected configurations.")
 
 
 def render_structured_conclusions(conclusion_data):
-    st.subheader("總結")
+    st.subheader("Executive Summary")
     if not conclusion_data:
-        st.info("沒有結論數據可顯示。")
+        st.info("No conclusion data to display.")
         return
 
     failed_ics = [item['component'] for item in conclusion_data if item['result'] == 'FAIL']
     if failed_ics:
-        st.markdown(f"**結果: <span style='color:red;'>FAIL</span>** - 以下元件超出溫度規格: **{', '.join(failed_ics)}**", unsafe_allow_html=True)
+        st.markdown(f"**Result: <span style='color:red;'>FAIL</span>** - The following components exceeded thermal limits: **{', '.join(failed_ics)}**", unsafe_allow_html=True)
     else:
-        st.markdown(f"**結果: <span style='color:lightgreen;'>PASS</span>** - 所有選擇的關鍵IC均在規格範圍內。", unsafe_allow_html=True)
+        st.markdown(f"**Result: <span style='color:lightgreen;'>PASS</span>** - All selected Key ICs are within their specified thermal limits.", unsafe_allow_html=True)
 
     st.divider()
-    st.subheader("詳細元件分析")
+    st.subheader("Detailed Component Analysis")
 
     for item in conclusion_data:
         result_text = item['result']
         status_emoji = "🔴" if result_text == "FAIL" else "🟢" if result_text == "PASS" else "⚪️"
-        expander_title = f"**{item['component']}** — 結果: {status_emoji} {result_text}"
+        expander_title = f"**{item['component']}** — Result: {status_emoji} {result_text}"
 
         with st.expander(expander_title, expanded=True):
             spec_val = f"{item['spec']:.2f}°C" if pd.notna(item['spec']) else "N/A"
-            st.markdown(f"**規格類型:** `{item['spec_type']}`")
-            st.markdown(f"**計算規格上限:** `{spec_val}`")
+            st.markdown(f"**Specification Type:** `{item['spec_type']}`")
+            st.markdown(f"**Calculated Spec Limit:** `{spec_val}`")
             if item.get('spec_inputs') != 'N/A':
-                st.markdown(f"**規格輸入:** `{item['spec_inputs']}`")
+                st.markdown(f"**Specification Inputs:** `{item['spec_inputs']}`")
 
-            st.write("**各設定下的表現:**")
+            st.write("**Performance per Configuration:**")
 
             if item['series_results']:
                 series_results_df = pd.DataFrame(item['series_results'])
 
-                html_table = "<table><tr><th style='text-align:left; padding-right: 1em;'>設定</th><th style='text-align:left; padding-right: 1em;'>溫度 (°C)</th><th style='text-align:left;'>結果</th></tr>"
+                html_table = "<table><tr><th style='text-align:left; padding-right: 1em;'>Configuration</th><th style='text-align:left; padding-right: 1em;'>Temp (°C)</th><th style='text-align:left;'>Result</th></tr>"
                 for _, row in series_results_df.iterrows():
                     res_text_inner = row['result']
                     temp_text = f"{row['temp']:.2f}" if pd.notna(row['temp']) else "N/A"
@@ -679,7 +679,7 @@ def render_structured_conclusions(conclusion_data):
                 html_table += "</table>"
                 st.markdown(html_table, unsafe_allow_html=True)
             else:
-                st.caption("沒有可顯示的溫度數據 (例如：未定義規格)。")
+                st.caption("No temperature data to display (e.g., spec was not defined).")
 
 # --- ======================================================================= ---
 # ---                             MAIN APP ROUTER                             ---
