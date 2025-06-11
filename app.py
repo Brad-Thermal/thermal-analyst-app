@@ -1,9 +1,10 @@
-# Sercomm Tool Suite v13.4
+# Sercomm Tool Suite v13.5
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes: 
-# - Final Version: Ensured all UI elements and outputs for both modules are in English.
-# - Verified that all modules (Viper, Cobra) and features (reporting, UI flow) are fully functional.
+# - Fixed a critical TypeError by ensuring a file object exists before analysis is triggered.
+# - Restored the complete UI for the Viper Thermal Suite module.
+# - Ensured full English translation.
 
 import streamlit as st
 import pandas as pd
@@ -494,10 +495,10 @@ def render_cobra_ui():
                 btn_col2.download_button("Download as Formatted Excel", data=excel_buf, file_name="cobra_results.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
             with res_tab3: 
                 st.subheader("Temperature Comparison Chart")
-                chart_data_numeric = results.get("chart_data")
+                df_chart_data = results.get("chart_data")
                 
-                fig_chart, ax = plt.subplots(figsize=(max(10, len(chart_data_numeric.index) * 0.8), 6))
-                chart_data_numeric[[s for s in selected_series]].plot(kind='bar', ax=ax, width=0.8); ax.set_ylabel("Temperature (°C)"); ax.set_title("Key IC Temperature Comparison"); plt.xticks(rotation=45, ha='right'); plt.grid(axis='y', linestyle='--', alpha=0.7); plt.tight_layout()
+                fig_chart, ax = plt.subplots(figsize=(max(10, len(df_chart_data.index) * 0.8), 6))
+                df_chart_data[[s for s in selected_series]].plot(kind='bar', ax=ax, width=0.8); ax.set_ylabel("Temperature (°C)"); ax.set_title("Key IC Temperature Comparison"); plt.xticks(rotation=45, ha='right'); plt.grid(axis='y', linestyle='--', alpha=0.7); plt.tight_layout()
                 st.pyplot(fig_chart)
                 
                 chart_buf = io.BytesIO(); fig_chart.savefig(chart_buf, format="png", dpi=300, bbox_inches='tight')
