@@ -1,7 +1,10 @@
-# Sercomm Tool Suite v13.5
+# Sercomm Tool Suite v14.0
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
-# Version Notes: 
+# Version Notes:
+# - v14.0: Fixed UI rendering bug in the 'Cobra' module's conclusion expanders by replacing non-functional HTML with status emojis.
+# - v14.0: Added the complete SVG logo for the 'Cobra' module for UI consistency.
+# - v14.0: Minor formatting improvements to the results table for better readability.
 # - FINAL BUG FIX: Corrected state management to fix the AttributeError on first run.
 # - FINAL BUG FIX: Restored the complete and correct UI code for the Viper Thermal Suite module.
 # - Ensured all UI elements and outputs for both modules are in English.
@@ -40,7 +43,7 @@ FAIL_COLOR_HEX = "#FFC7CE"
 NO_COMPARISON_LABEL = "---"
 
 # --- ======================================================================= ---
-# ---                     CALCULATION ENGINES                                 ---
+# ---                          CALCULATION ENGINES                            ---
 # --- ======================================================================= ---
 
 def calculate_natural_convection(L, W, H, Ts_peak, Ta, material_props):
@@ -87,7 +90,7 @@ def calculate_solar_gain(projected_area_mm2, alpha, solar_irradiance):
     except Exception as e: return {"error": f"An unexpected error occurred during calculation: {e}"}
 
 # --- ======================================================================= ---
-# ---                     COBRA DATA PROCESSING LOGIC                         ---
+# ---                       COBRA DATA PROCESSING LOGIC                       ---
 # --- ======================================================================= ---
 def clean_series_header(raw_header: str) -> str:
     temp_name = str(raw_header).strip()
@@ -139,7 +142,7 @@ def cobra_pre_study(uploaded_file):
         for raw_name in raw_series_names:
             clean_base = clean_series_header(raw_name)
             count = counts.get(clean_base, 0)
-            final_name = f"{clean_base}_{count}" if count > 0 else clean_base
+            final_name = f"{clean_base}_{count+1}" if clean_base in counts else clean_base
             counts[clean_base] = count + 1
             cleaned_names.append(final_name)
             cleaned_to_raw_map[final_name] = raw_name
@@ -221,13 +224,13 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
         
         for col in df_table_display.columns:
             if df_table_display[col].dtype in ['float64', 'int64']:
-                 df_table_display[col] = df_table_display[col].map(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+                df_table_display[col] = df_table_display[col].map(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
 
         return {"table": df_table_display, "chart_data": df_table_numeric, "conclusion_data": conclusion_data}
     except Exception as e: return {"error": f"An error occurred during analysis: {e}"}
 
 # --- ======================================================================= ---
-# ---               COBRA REPORTING & EXPORT FUNCTIONS                      ---
+# ---                   COBRA REPORTING & EXPORT FUNCTIONS                    ---
 # --- ======================================================================= ---
 
 def generate_formatted_table_image(df_table):
@@ -270,7 +273,7 @@ def create_formatted_excel(df_table):
         
         for col in df_to_export.columns:
             if col != 'Component' and col != 'Result' and not col.startswith(f"{DELTA_SYMBOL}T"):
-                 df_to_export[col] = pd.to_numeric(df_to_export[col], errors='ignore')
+                df_to_export[col] = pd.to_numeric(df_to_export[col], errors='ignore')
         
         df_to_export.to_excel(writer, sheet_name=sheet_name, index=False)
         
@@ -295,7 +298,7 @@ def create_formatted_excel(df_table):
     return output
 
 # --- ======================================================================= ---
-# ---                       APPLICATION UI FUNCTIONS                          ---
+# ---                        APPLICATION UI FUNCTIONS                         ---
 # --- ======================================================================= ---
 
 def render_viper_ui():
@@ -351,11 +354,9 @@ def render_viper_ui():
         col_force_input, col_force_result = st.columns(2, gap="large")
         with col_force_input:
             st.subheader("Input Parameters")
-            fc_param_col1, fc_param_col2 = st.columns(2, gap="medium")
-            with fc_param_col1: fc_power_q = st.number_input("Power to Dissipate (Q, W)", 0.1, value=50.0, step=1.0, format="%.1f", help="The total heat (in Watts) that the fan must remove.")
-            with fc_param_col2:
-                fc_temp_in = st.number_input("Inlet Air Temp (Tin, °C)", 0, 60, 25, key="fc_tin")
-                fc_temp_out = st.number_input("Max. Outlet Temp (Tout, °C)", fc_temp_in + 1, 100, 45, key="fc_tout")
+            fc_power_q = st.number_input("Power to Dissipate (Q, W)", 0.1, value=50.0, step=1.0, format="%.1f", help="The total heat (in Watts) that the fan must remove.")
+            fc_temp_in = st.number_input("Inlet Air Temp (Tin, °C)", 0, 60, 25, key="fc_tin")
+            fc_temp_out = st.number_input("Max. Outlet Temp (Tout, °C)", fc_temp_in + 1, 100, 45, key="fc_tout")
             st.subheader("Governing Equation")
             st.latex(r"Q = \dot{m} \cdot C_p \cdot \Delta T")
         with col_force_result:
@@ -386,12 +387,21 @@ def render_viper_ui():
             else: st.metric(label="☀️ Absorbed Solar Heat Gain", value=f"{solar_results['solar_gain']:.2f} W")
 
 def render_cobra_ui():
-    cobra_logo_svg = """...""" # Omitted for brevity
+    cobra_logo_svg = """
+    <svg width="50" height="50" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M40 95 C 20 95, 10 75, 25 60 C 35 50, 65 50, 75 60 C 90 75, 80 95, 60 95 L 40 95 Z" fill="#2C7873"/>
+        <path d="M50 70 C 25 70, 25 40, 50 20 C 75 40, 75 70, 50 70 Z" fill="#4A938E" stroke="#FFFFFF" stroke-width="2"/>
+        <path d="M50 20 C 40 30, 40 50, 50 60 C 60 50, 60 30, 50 20" fill="#1E1E1E"/>
+        <circle cx="46" cy="45" r="4" fill="red"/>
+        <circle cx="54" cy="45" r="4" fill="red"/>
+        <path d="M48 62 L52 62 L50 70 Z" fill="#FFD700"/>
+    </svg>
+    """
     st.markdown(f"""
-        <div style="display: flex; align-items: center; padding-bottom: 10px; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px;">
             <div style="margin-right: 15px;">{cobra_logo_svg}</div>
             <div>
-                <h1 style="margin-bottom: -15px; color: #FFFFFF;">Cobra</h1>
+                <h1 style="margin-bottom: 0; color: #FFFFFF;">Cobra</h1>
                 <p style="margin-top: 0; color: #AAAAAA;">Data Transformation</p>
             </div>
         </div>
@@ -437,8 +447,8 @@ def render_cobra_ui():
         
         for i, pair in enumerate(st.session_state.delta_t_pairs):
             pair_cols = st.columns([2, 2, 1])
-            baseline = pair_cols[0].selectbox(f"Baseline:", [NO_COMPARISON_LABEL] + selected_series, key=f"delta_b_{i}")
-            compare = pair_cols[1].selectbox(f"Compare to:", [NO_COMPARISON_LABEL] + selected_series, key=f"delta_c_{i}")
+            baseline = pair_cols[0].selectbox(f"Baseline:", [NO_COMPARISON_LABEL] + selected_series, index=0, key=f"delta_b_{i}")
+            compare = pair_cols[1].selectbox(f"Compare to:", [NO_COMPARISON_LABEL] + selected_series, index=0, key=f"delta_c_{i}")
             if pair_cols[2].button("Remove", key=f"remove_delta_{i}"):
                 st.session_state.delta_t_pairs.pop(i)
                 st.rerun()
@@ -499,7 +509,7 @@ def render_cobra_ui():
                 
                 fig_chart, ax = plt.subplots(figsize=(max(10, len(chart_data_numeric.index) * 0.8), 6))
                 df_chart_data_to_plot = chart_data_numeric[[s for s in selected_series]].copy()
-                df_chart_data_to_plot.columns = [f"{col} (°C)" for col in df_chart_data_to_plot.columns]
+                df_chart_data_to_plot.columns = [f"{col}" for col in df_chart_data_to_plot.columns]
                 
                 df_chart_data_to_plot.plot(kind='bar', ax=ax, width=0.8); ax.set_ylabel("Temperature (°C)"); ax.set_title("Key IC Temperature Comparison"); plt.xticks(rotation=45, ha='right'); plt.grid(axis='y', linestyle='--', alpha=0.7); plt.tight_layout()
                 st.pyplot(fig_chart)
@@ -520,8 +530,11 @@ def render_structured_conclusions(conclusion_data):
 
     for item in conclusion_data:
         result_text = item['result']
-        color = "red" if result_text == "FAIL" else "lightgreen" if result_text == "PASS" else "white"
-        with st.expander(f"**{item['component']}** - Result: <span style='color:{color};'>{result_text}</span>", expanded=True):
+        # FIX: Use emojis for a clean, visual status in the expander title, as st.expander does not render HTML.
+        status_emoji = "🔴" if result_text == "FAIL" else "🟢" if result_text == "PASS" else "⚪️"
+        expander_title = f"**{item['component']}** — Result: {status_emoji} {result_text}"
+
+        with st.expander(expander_title, expanded=True):
             spec_val = f"{item['spec']:.2f}°C" if pd.notna(item['spec']) else "N/A"
             st.markdown(f"**Specification Type:** `{item['spec_type']}`")
             st.markdown(f"**Calculated Spec Limit:** `{spec_val}`")
@@ -533,23 +546,24 @@ def render_structured_conclusions(conclusion_data):
             if item['series_results']:
                 series_results_df = pd.DataFrame(item['series_results'])
                 
-                html_table = "<table><tr><th style='text-align:left'>Configuration</th><th style='text-align:left'>Temp (°C)</th><th style='text-align:left'>Result</th></tr>"
+                # Style the results table for better readability.
+                html_table = "<table><tr><th style='text-align:left; padding-right: 1em;'>Configuration</th><th style='text-align:left; padding-right: 1em;'>Temp (°C)</th><th style='text-align:left;'>Result</th></tr>"
                 for _, row in series_results_df.iterrows():
                     res_text_inner = row['result']
-                    res_color_inner = "red" if res_text_inner == "FAIL" else "lightgreen" if res_text_inner == "PASS" else "white"
+                    res_color_inner = FAIL_COLOR_HEX if res_text_inner == "FAIL" else PASS_COLOR_HEX if res_text_inner == "PASS" else "inherit"
                     temp_text = f"{row['temp']:.2f}" if pd.notna(row['temp']) else "N/A"
-                    html_table += f"<tr><td>{row['series']}</td><td>{temp_text}</td><td style='color:{res_color_inner};'>{res_text_inner}</td></tr>"
+                    html_table += f"<tr><td>{row['series']}</td><td>{temp_text}</td><td style='font-weight:bold; color:{'#FF2B2B' if res_text_inner == 'FAIL' else 'inherit'};'>{res_text_inner}</td></tr>"
                 html_table += "</table>"
                 st.markdown(html_table, unsafe_allow_html=True)
             else:
                 st.caption("No temperature data to display (e.g., spec was not defined).")
 
 # --- ======================================================================= ---
-# ---                           MAIN APP ROUTER                             ---
+# ---                             MAIN APP ROUTER                             ---
 # --- ======================================================================= ---
 st.set_page_config(page_title="Sercomm Tool Suite", layout="wide")
 st.sidebar.title("Sercomm Thermal Engineering")
-app_selection = st.sidebar.radio("Select a Tool:", ("Viper - Risk analysis", "Cobra - Data transformation"))
+app_selection = st.sidebar.radio("Select a Tool:", ("Cobra - Data transformation", "Viper - Risk analysis"))
 st.sidebar.markdown("---")
 st.sidebar.info("A unified platform for Sercomm's engineering analysis tools.")
 
