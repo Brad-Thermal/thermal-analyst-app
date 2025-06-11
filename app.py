@@ -1,10 +1,10 @@
-# Sercomm Tool Suite v13.5
+# Sercomm Tool Suite v12.2
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes: 
-# - Fixed a critical TypeError by ensuring a file object exists before analysis is triggered.
-# - Restored the complete UI for the Viper Thermal Suite module.
-# - Ensured full English translation.
+# - FINAL BUG FIX: Corrected state management to fix UI flow and module rendering issues.
+# - Restored the complete UI code for BOTH the Viper and Cobra modules.
+# - Ensured all UI elements and outputs for both modules are in English.
 
 import streamlit as st
 import pandas as pd
