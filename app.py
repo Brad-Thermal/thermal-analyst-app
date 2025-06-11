@@ -1,12 +1,11 @@
-# Sercomm Tool Suite v18.0
+# Sercomm Tool Suite v18.1
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes:
+# - v18.1: CRITICAL FIX: Resolved an analysis error by correctly managing the uploaded file's state, preventing a crash when the app reruns.
 # - v18.0: Reverted UI to English per user request. Maintained enhanced selection controls.
 # - v18.0: Added 'Select All'/'Deselect All' buttons for a better bulk selection experience.
-# - v17.0: Reverted all UI elements in the Cobra module back to English.
 # - v16.0: Optimized the 'Analysis Parameters' section with compact and stylish multiselect components.
-# - v15.0: Redesigned the 'Cobra' UI for a more compact and efficient layout.
 
 import streamlit as st
 import pandas as pd
@@ -158,9 +157,10 @@ def cobra_pre_study(uploaded_file):
         }
     except Exception as e: return {"error": f"An error occurred during pre-study: {e}"}
 
-def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics, spec_df, delta_pairs):
+def run_cobra_analysis(file_buffer, cobra_data, selected_series, selected_ics, spec_df, delta_pairs):
     try:
-        df_full = pd.read_excel(uploaded_file, sheet_name=cobra_data['target_sheet'], header=None, dtype=str)
+        # FIX: Read from the in-memory file buffer instead of a path
+        df_full = pd.read_excel(file_buffer, sheet_name=cobra_data['target_sheet'], header=None, dtype=str)
         df_data = df_full.iloc[cobra_data['header_row_idx'] + 1:].copy()
 
         analysis_data = {
@@ -416,24 +416,25 @@ def render_cobra_ui():
         st.subheader("Upload Excel File")
         uploaded_file = st.file_uploader("Drag and drop file here", type=["xlsx", "xls"], key="cobra_file_uploader", label_visibility="collapsed")
 
-    # --- Initialize session state for selections ---
+    # --- Initialize session state ---
     if 'cobra_prestudy_data' not in st.session_state: st.session_state.cobra_prestudy_data = {}
     if 'cobra_analysis_results' not in st.session_state: st.session_state.cobra_analysis_results = None
     if 'delta_t_pairs' not in st.session_state: st.session_state.delta_t_pairs = []
+    # FIX: Add session state for the uploaded file buffer
+    if 'uploaded_file_buffer' not in st.session_state: st.session_state.uploaded_file_buffer = None
+
 
     if uploaded_file and st.session_state.get('cobra_filename') != uploaded_file.name:
         st.session_state.cobra_filename = uploaded_file.name
+        # FIX: Store the file buffer in session state
+        st.session_state.uploaded_file_buffer = uploaded_file.getvalue()
         with st.spinner('Pre-analyzing Excel file...'):
-            st.session_state.cobra_prestudy_data = cobra_pre_study(uploaded_file)
+            st.session_state.cobra_prestudy_data = cobra_pre_study(io.BytesIO(st.session_state.uploaded_file_buffer))
             st.session_state.cobra_analysis_results = None
             st.session_state.delta_t_pairs = []
-            # Reset selections on new file upload
-            if 'series_selection' in st.session_state:
-                del st.session_state.series_selection
-            if 'ic_selection' in st.session_state:
-                del st.session_state.ic_selection
-            if 'spec_df' in st.session_state: 
-                del st.session_state.spec_df
+            if 'series_selection' in st.session_state: del st.session_state.series_selection
+            if 'ic_selection' in st.session_state: del st.session_state.ic_selection
+            if 'spec_df' in st.session_state: del st.session_state.spec_df
     
     cobra_data = st.session_state.get('cobra_prestudy_data', {})
 
@@ -521,10 +522,15 @@ def render_cobra_ui():
     st.divider()
     if st.button("🚀 Analyze Selected Data", use_container_width=True, type="primary"):
         if not selected_series or not selected_ics: st.warning("Please select at least one configuration AND one Key IC.")
+        # FIX: Check for the file buffer in session state
+        elif st.session_state.uploaded_file_buffer is None:
+            st.error("File buffer is missing. Please re-upload the file.")
         else:
             delta_pairs_for_analysis = [pair for pair in st.session_state.delta_t_pairs if pair['baseline'] != NO_COMPARISON_LABEL and pair['compare'] != NO_COMPARISON_LABEL]
             with st.spinner("Processing data..."):
-                st.session_state.cobra_analysis_results = run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics, spec_df, delta_pairs_for_analysis)
+                # FIX: Pass the stored file buffer to the analysis function
+                file_buffer = io.BytesIO(st.session_state.uploaded_file_buffer)
+                st.session_state.cobra_analysis_results = run_cobra_analysis(file_buffer, cobra_data, selected_series, selected_ics, spec_df, delta_pairs_for_analysis)
 
     if st.session_state.get('cobra_analysis_results'):
         results = st.session_state.cobra_analysis_results
