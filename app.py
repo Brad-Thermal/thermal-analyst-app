@@ -1,11 +1,11 @@
-# Sercomm Tool Suite v19.10
+# Sercomm Tool Suite v19.11
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes:
+# - v19.11: Formatted temperature values in the table image to one decimal place.
 # - v19.10: Reverted UI to English per user request.
 # - v19.9: Changed chart data labels to one decimal place and added a fontsize parameter for easy adjustment.
 # - v19.8: CRITICAL FIX: Corrected the chart labeling logic to resolve the persistent AttributeError.
-# - v19.6: Improved chart readability by moving the legend outside the plot area and dynamically adjusting the y-axis.
 
 import streamlit as st
 import pandas as pd
@@ -240,7 +240,8 @@ def run_cobra_analysis(file_buffer, cobra_data, selected_series, selected_ics, s
         df_for_image = df_table_display.copy()
         for col in df_for_image.columns:
             if df_for_image[col].dtype in ['float64', 'int64']:
-                df_for_image[col] = df_for_image[col].map(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+                # Change to one decimal place
+                df_for_image[col] = df_for_image[col].map(lambda x: f"{x:.1f}" if pd.notna(x) else "N/A")
         
         return {"table_for_image": df_for_image, "table_for_excel": df_for_excel, "chart_data": df_table_numeric, "conclusion_data": conclusion_data}
     except Exception as e:
