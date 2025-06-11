@@ -283,7 +283,7 @@ def generate_formatted_table_image(df_table):
             cell.set_facecolor('#606060')
             cell.set_text_props(weight='bold', color='white')
         else:  # Data rows
-            cell.set_height(0.25) # Standard height for data
+            cell.set_height(0.5) # Standard height for data
             cell.set_facecolor('#F0F0F0' if row % 2 != 0 else 'white')
             # Color PASS/FAIL results
             if 'Result' in df_plot.columns and column_labels[col] == 'Result':
