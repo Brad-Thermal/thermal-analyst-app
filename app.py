@@ -1,13 +1,14 @@
-# Sercomm Tool Suite v14.0
+# Sercomm Tool Suite v15.0
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes:
-# - v14.0: Fixed UI rendering bug in the 'Cobra' module's conclusion expanders by replacing non-functional HTML with status emojis.
+# - v15.0: Redesigned the 'Cobra' UI for a more compact and efficient layout.
+# - v15.0: Implemented a tabbed interface for Analysis Parameters to reduce scrolling.
+# - v15.0: Localized the UI elements in the Cobra module to Traditional Chinese.
+# - v14.0: Fixed UI rendering bug in the 'Cobra' module's conclusion expanders.
 # - v14.0: Added the complete SVG logo for the 'Cobra' module for UI consistency.
 # - v14.0: Minor formatting improvements to the results table for better readability.
-# - FINAL BUG FIX: Corrected state management to fix the AttributeError on first run.
-# - FINAL BUG FIX: Restored the complete and correct UI code for the Viper Thermal Suite module.
-# - Ensured all UI elements and outputs for both modules are in English.
+# - Ensured all UI elements and outputs for both modules are in English, except where localized.
 
 import streamlit as st
 import pandas as pd
@@ -96,7 +97,7 @@ def clean_series_header(raw_header: str) -> str:
     temp_name = str(raw_header).strip()
     if not temp_name: return "Unnamed Series"
     if temp_name.upper() in ["DEFAULT", "BASELINE"]: return temp_name.capitalize()
-    
+
     bracket_match = re.search(r"\[(.*?)\]", temp_name)
     if bracket_match:
         content = bracket_match.group(1).strip()
@@ -107,7 +108,7 @@ def clean_series_header(raw_header: str) -> str:
 
     patterns = [r"Temperature \(Solid\) Max.*", r"\[°C\]", r"\(°C\)", r"°C", r"PoE mode_battery.*", r"k=10.*"]
     for p in patterns: temp_name = re.sub(p, "", temp_name, flags=re.IGNORECASE).strip()
-    
+
     temp_name = temp_name.strip().replace("_", " ")
     temp_name = re.sub(r"\s+", " ", temp_name).strip()
     return temp_name if temp_name else "Unnamed Series"
@@ -133,7 +134,7 @@ def cobra_pre_study(uploaded_file):
         for i, row in df_header.iterrows():
             if str(row.iloc[DATA_COL_COMPONENT_IDX]).strip().upper().startswith("GOAL ("): header_row_idx = i; break
         if header_row_idx == -1: return {"error": "Could not find 'Goal (Value)' marker in column B."}
-        
+
         header_row = df_header.iloc[header_row_idx]
         raw_series_names = [str(name).strip() for name in header_row[DATA_COL_FIRST_SERIES_TEMP_IDX:] if str(name).strip() and str(name).strip().lower() != 'nan']
         series_excel_indices = {name: i for i, name in enumerate(header_row) if name in raw_series_names}
@@ -146,12 +147,12 @@ def cobra_pre_study(uploaded_file):
             counts[clean_base] = count + 1
             cleaned_names.append(final_name)
             cleaned_to_raw_map[final_name] = raw_name
-        
+
         data_start_row = header_row_idx + 1
         df_components = pd.read_excel(xls, sheet_name=target_sheet, header=None, usecols=[DATA_COL_COMPONENT_IDX], skiprows=data_start_row, dtype=str)
         unique_original_components = df_components.iloc[:, 0].str.strip().replace('', np.nan).dropna().unique()
         cleaned_components_set = {clean_component_display_name(name) for name in unique_original_components if clean_component_display_name(name)}
-        
+
         return {
             "error": None, "series_names": cleaned_names, "component_names": sorted(list(cleaned_components_set)),
             "series_excel_indices": series_excel_indices, "cleaned_to_raw_map": cleaned_to_raw_map,
@@ -163,13 +164,13 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
     try:
         df_full = pd.read_excel(uploaded_file, sheet_name=cobra_data['target_sheet'], header=None, dtype=str)
         df_data = df_full.iloc[cobra_data['header_row_idx'] + 1:].copy()
-        
+
         analysis_data = {
             cleaned_name: pd.to_numeric(df_data[cobra_data['series_excel_indices'][cobra_data['cleaned_to_raw_map'][cleaned_name]]], errors='coerce')
             for cleaned_name in selected_series
         }
         component_names = df_data[DATA_COL_COMPONENT_IDX].apply(clean_component_display_name)
-        
+
         table_data, key_ic_data = [], {}
         for ic in selected_ics:
             match_indices = component_names[component_names == ic].index
@@ -181,10 +182,10 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
 
         if not table_data:
             return {"error": "No data found for the selected Key ICs."}
-            
+
         df_table_numeric = pd.DataFrame(table_data).set_index("Component")
         df_table_display = df_table_numeric.copy()
-        
+
         results, conclusion_data = {}, []
         for _, spec_row in spec_df.iterrows():
             ic, spec_type = spec_row['Component'], spec_row['Spec Type']
@@ -198,7 +199,7 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
                 elif spec_type == SPEC_TYPE_TA_ONLY:
                     effective_spec, spec_inputs = float(spec_row['Ta Limit (°C)']), f"Ta Limit: {spec_row['Ta Limit (°C)']}"
             except (ValueError, TypeError): pass
-            
+
             ic_result = {"spec": effective_spec, "result": "PASS", "spec_type": spec_type, "spec_inputs": spec_inputs, "series_results": []}
             if pd.notna(effective_spec) and ic in key_ic_data:
                 for s_name, temp in key_ic_data[ic].items():
@@ -209,7 +210,7 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
                     ic_result["series_results"].append({"series": s_name, "temp": temp, "result": res})
             results[ic] = ic_result
             conclusion_data.append({"component": ic, **ic_result})
-        
+
         df_table_display.columns = [f"{col} (°C)" for col in df_table_display.columns]
         df_table_display['Spec (°C)'] = [f"{res.get('spec_type', '')} = {res.get('spec', 'N/A'):.2f}" if pd.notna(res.get('spec')) else "N/A" for ic, res in results.items()]
         df_table_display['Result'] = [results.get(ic, {}).get('result', 'N/A') for ic in df_table_display.index]
@@ -221,7 +222,7 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
                 temp_c = df_table_numeric[compare]
                 delta_col_name = f"{DELTA_SYMBOL}T ({baseline} - {compare}) (°C)"
                 df_table_display[delta_col_name] = (temp_b - temp_c)
-        
+
         for col in df_table_display.columns:
             if df_table_display[col].dtype in ['float64', 'int64']:
                 df_table_display[col] = df_table_display[col].map(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
@@ -236,21 +237,21 @@ def run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics,
 def generate_formatted_table_image(df_table):
     if df_table.empty:
         fig, ax = plt.subplots(figsize=(8, 1)); ax.text(0.5, 0.5, "No data to display.", ha="center", va="center"); ax.axis('off'); return fig
-    
+
     df_plot = df_table.reset_index()
     column_labels = df_plot.columns.tolist()
     wrapped_column_labels = [textwrap.fill(label, width=15) for label in column_labels]
-    
+
     num_rows = len(df_plot)
     header_max_lines = max(label.count('\n') + 1 for label in wrapped_column_labels)
     fig_height = (num_rows * 0.4) + (header_max_lines * 0.4) + 0.5
     fig_width = 2.5 + len(column_labels) * 1.6
     fig, ax = plt.subplots(figsize=(fig_width, fig_height))
     ax.axis('off'); ax.axis('tight')
-    
+
     table = ax.table(cellText=df_plot.values, colLabels=wrapped_column_labels, loc='center', cellLoc='center')
     table.auto_set_font_size(False); table.set_fontsize(10)
-    
+
     cells = table.get_celld()
     for (row, col), cell in cells.items():
         cell.set_edgecolor('black')
@@ -270,28 +271,28 @@ def create_formatted_excel(df_table):
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         sheet_name = 'ThermalTableData'
         df_to_export = df_table.reset_index()
-        
+
         for col in df_to_export.columns:
             if col != 'Component' and col != 'Result' and not col.startswith(f"{DELTA_SYMBOL}T"):
                 df_to_export[col] = pd.to_numeric(df_to_export[col], errors='ignore')
-        
+
         df_to_export.to_excel(writer, sheet_name=sheet_name, index=False)
-        
+
         workbook, worksheet = writer.book, writer.sheets[sheet_name]
         header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'vcenter', 'align': 'center', 'fg_color': '#606060', 'font_color': 'white', 'border': 1})
         pass_format = workbook.add_format({'bg_color': PASS_COLOR_HEX, 'border': 1, 'align': 'center', 'valign': 'vcenter'})
         fail_format = workbook.add_format({'bg_color': FAIL_COLOR_HEX, 'border': 1, 'align': 'center', 'valign': 'vcenter'})
-        
+
         for col_num, value in enumerate(df_to_export.columns.values):
             worksheet.write(0, col_num, value, header_format)
-        
+
         try:
             result_col_idx = df_to_export.columns.get_loc("Result")
             result_col_letter = chr(ord('A') + result_col_idx)
             worksheet.conditional_format(f'{result_col_letter}2:{result_col_letter}{len(df_to_export)+1}', {'type': 'cell', 'criteria': '==', 'value': '"PASS"', 'format': pass_format})
             worksheet.conditional_format(f'{result_col_letter}2:{result_col_letter}{len(df_to_export)+1}', {'type': 'cell', 'criteria': '==', 'value': '"FAIL"', 'format': fail_format})
         except KeyError: pass
-            
+
         worksheet.set_column('A:A', 25)
         worksheet.set_column('B:Z', 18)
     output.seek(0)
@@ -326,7 +327,7 @@ def render_viper_ui():
     solar_absorptivity_materials = {"White (Paint)": {"absorptivity": 0.25}, "Silver (Paint)": {"absorptivity": 0.40}, "Dark Gray": {"absorptivity": 0.80}, "Black (Plastic/Paint)": {"absorptivity": 0.95}}
 
     tab_nat, tab_force, tab_solar = st.tabs(["🍃 Natural Convection", "🌬️ Forced Convection", "☀️ Solar Radiation"])
-    
+
     with tab_nat:
         st.header("Passive Cooling Power Estimator")
         col_nat_input, col_nat_result = st.columns(2, gap="large")
@@ -402,69 +403,75 @@ def render_cobra_ui():
             <div style="margin-right: 15px;">{cobra_logo_svg}</div>
             <div>
                 <h1 style="margin-bottom: 0; color: #FFFFFF;">Cobra</h1>
-                <p style="margin-top: 0; color: #AAAAAA;">Data Transformation</p>
+                <p style="margin-top: 0; color: #AAAAAA;">數據轉換與分析</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
-    
-    uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx", "xls"], key="cobra_file_uploader")
+
+    # --- NEW: Compact Layout ---
+    main_cols = st.columns([0.4, 0.6], gap="large")
+
+    with main_cols[0]:
+        st.subheader("上傳 Excel 檔案")
+        uploaded_file = st.file_uploader("拖曳檔案至此", type=["xlsx", "xls"], key="cobra_file_uploader", label_visibility="collapsed")
+
 
     if 'cobra_prestudy_data' not in st.session_state: st.session_state.cobra_prestudy_data = {}
     if 'cobra_analysis_results' not in st.session_state: st.session_state.cobra_analysis_results = None
     if 'delta_t_pairs' not in st.session_state: st.session_state.delta_t_pairs = []
-    
+
     if uploaded_file and st.session_state.get('cobra_filename') != uploaded_file.name:
         st.session_state.cobra_filename = uploaded_file.name
-        with st.spinner('Pre-analyzing Excel file...'):
+        with st.spinner('正在預先分析 Excel 檔案...'):
             st.session_state.cobra_prestudy_data = cobra_pre_study(uploaded_file)
             st.session_state.cobra_analysis_results = None
             st.session_state.delta_t_pairs = []
             if 'spec_df' in st.session_state: del st.session_state.spec_df
-    
+
     cobra_data = st.session_state.get('cobra_prestudy_data', {})
 
-    if not cobra_data.get("series_names"):
-        st.info("Upload an Excel file to begin analysis."); return
-    if cobra_data.get("error"):
-        st.error(cobra_data["error"]); return
-        
-    st.subheader("Analysis Parameters")
-    
-    selection_container = st.container(border=True)
-    selection_col1, selection_col2 = selection_container.columns(2, gap="large")
+    with main_cols[1]:
+        if not cobra_data.get("series_names"):
+            st.info("請上傳 Excel 檔案以開始分析。")
+            return
+        if cobra_data.get("error"):
+            st.error(cobra_data["error"]); return
 
-    with selection_col1:
-        st.write("**1. Select Configurations**")
-        with st.container(height=250):
-            selected_series = [name for name in cobra_data["series_names"] if st.checkbox(name, value=True, key=f"series_{name}")]
-    with selection_col2:
-        st.write("**2. Select Key ICs**")
-        with st.container(height=250):
-            selected_ics = [name for name in cobra_data["component_names"] if st.checkbox(name, key=f"ic_{name}")]
+        st.subheader("分析參數")
 
-    with selection_container:
-        st.write(f"**3. {DELTA_SYMBOL}T Comparison (Optional)**")
-        
-        for i, pair in enumerate(st.session_state.delta_t_pairs):
-            pair_cols = st.columns([2, 2, 1])
-            baseline = pair_cols[0].selectbox(f"Baseline:", [NO_COMPARISON_LABEL] + selected_series, index=0, key=f"delta_b_{i}")
-            compare = pair_cols[1].selectbox(f"Compare to:", [NO_COMPARISON_LABEL] + selected_series, index=0, key=f"delta_c_{i}")
-            if pair_cols[2].button("Remove", key=f"remove_delta_{i}"):
-                st.session_state.delta_t_pairs.pop(i)
-                st.rerun()
-            st.session_state.delta_t_pairs[i] = {'baseline': baseline, 'compare': compare}
+        # --- NEW: Tabbed interface ---
+        tab1, tab2, tab3 = st.tabs(["1. 選擇設定", "2. 選擇關鍵IC", f"3. {DELTA_SYMBOL}T 比較 (選填)"])
 
-        if st.button("Add ΔT Pair"):
-            st.session_state.delta_t_pairs.append({'baseline': NO_COMPARISON_LABEL, 'compare': NO_COMPARISON_LABEL})
-            st.rerun()
+        with tab1:
+            with st.container(height=280):
+                selected_series = [name for name in cobra_data["series_names"] if st.checkbox(name, value=True, key=f"series_{name}")]
+        with tab2:
+            with st.container(height=280):
+                 selected_ics = [name for name in cobra_data["component_names"] if st.checkbox(name, key=f"ic_{name}")]
+
+        with tab3:
+            with st.container(height=280):
+                for i, pair in enumerate(st.session_state.delta_t_pairs):
+                    pair_cols = st.columns([2, 2, 1])
+                    baseline = pair_cols[0].selectbox(f"基準:", [NO_COMPARISON_LABEL] + selected_series, index=0, key=f"delta_b_{i}")
+                    compare = pair_cols[1].selectbox(f"比較對象:", [NO_COMPARISON_LABEL] + selected_series, index=0, key=f"delta_c_{i}")
+                    if pair_cols[2].button("移除", key=f"remove_delta_{i}"):
+                        st.session_state.delta_t_pairs.pop(i)
+                        st.rerun()
+                    st.session_state.delta_t_pairs[i] = {'baseline': baseline, 'compare': compare}
+
+                if st.button("新增 ΔT 比較"):
+                    st.session_state.delta_t_pairs.append({'baseline': NO_COMPARISON_LABEL, 'compare': NO_COMPARISON_LABEL})
+                    st.rerun()
+    # --- End of new layout ---
 
     spec_df = None
-    if selected_ics:
-        st.subheader("4. Key IC Specification Input")
+    if 'selected_ics' in locals() and selected_ics:
+        st.subheader("4. 關鍵IC規格輸入")
         if 'spec_df' not in st.session_state or set(st.session_state.spec_df['Component']) != set(selected_ics):
             spec_data = [{"Component": ic, "Spec Type": SPEC_TYPE_TC_CALC, "Tj (°C)": None, "Rjc (°C/W)": None, "Pd (W)": None, "Ta Limit (°C)": None} for ic in selected_ics]
             st.session_state.spec_df = pd.DataFrame(spec_data)
-        
+
         edited_specs_df = st.data_editor(st.session_state.spec_df, key="spec_editor", hide_index=True, use_container_width=True,
             column_config={
                 "Spec Type": st.column_config.SelectboxColumn("Spec Type", options=SPEC_TYPES, required=True),
@@ -477,77 +484,75 @@ def render_cobra_ui():
         spec_df = edited_specs_df
 
     st.divider()
-    if st.button("🚀 Analyze Selected Data", use_container_width=True, type="primary"):
-        if not selected_series or not selected_ics: st.warning("Please select at least one configuration AND one Key IC.")
+    if st.button("🚀 開始分析", use_container_width=True, type="primary"):
+        if not selected_series or not selected_ics: st.warning("請至少選擇一個設定 (Configuration) 和一個關鍵IC (Key IC)。")
         else:
             delta_pairs_for_analysis = [pair for pair in st.session_state.delta_t_pairs if pair['baseline'] != NO_COMPARISON_LABEL and pair['compare'] != NO_COMPARISON_LABEL]
-            with st.spinner("Processing data..."):
+            with st.spinner("正在處理數據..."):
                 st.session_state.cobra_analysis_results = run_cobra_analysis(uploaded_file, cobra_data, selected_series, selected_ics, spec_df, delta_pairs_for_analysis)
 
     if st.session_state.get('cobra_analysis_results'):
         results = st.session_state.cobra_analysis_results
-        if results.get("error"): st.error(f"**Analysis Error:** {results['error']}")
+        if results.get("error"): st.error(f"**分析錯誤:** {results['error']}")
         else:
-            st.header("Analysis Results")
-            res_tab1, res_tab2, res_tab3 = st.tabs(["**Conclusions**", "**Table**", "**Chart**"])
+            st.header("分析結果")
+            res_tab1, res_tab2, res_tab3 = st.tabs(["**結論**", "**表格**", "**圖表**"])
             with res_tab1:
                 render_structured_conclusions(results.get("conclusion_data", []))
-            with res_tab2: 
-                st.subheader("Formatted Data Table")
+            with res_tab2:
+                st.subheader("數據總表")
                 table_fig = generate_formatted_table_image(results.get("table"))
                 st.pyplot(table_fig)
-                
+
                 img_buf = io.BytesIO(); table_fig.savefig(img_buf, format="png", dpi=300, bbox_inches='tight')
                 excel_buf = create_formatted_excel(results.get("table"))
 
                 btn_col1, btn_col2 = st.columns(2)
-                btn_col1.download_button("Download Table as PNG", data=img_buf, file_name="cobra_table.png", mime="image/png", use_container_width=True)
-                btn_col2.download_button("Download as Formatted Excel", data=excel_buf, file_name="cobra_results.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
-            with res_tab3: 
-                st.subheader("Temperature Comparison Chart")
+                btn_col1.download_button("下載表格 (PNG)", data=img_buf, file_name="cobra_table.png", mime="image/png", use_container_width=True)
+                btn_col2.download_button("下載為 Excel", data=excel_buf, file_name="cobra_results.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+            with res_tab3:
+                st.subheader("溫度比較圖")
                 chart_data_numeric = results.get("chart_data")
-                
+
                 fig_chart, ax = plt.subplots(figsize=(max(10, len(chart_data_numeric.index) * 0.8), 6))
                 df_chart_data_to_plot = chart_data_numeric[[s for s in selected_series]].copy()
                 df_chart_data_to_plot.columns = [f"{col}" for col in df_chart_data_to_plot.columns]
-                
+
                 df_chart_data_to_plot.plot(kind='bar', ax=ax, width=0.8); ax.set_ylabel("Temperature (°C)"); ax.set_title("Key IC Temperature Comparison"); plt.xticks(rotation=45, ha='right'); plt.grid(axis='y', linestyle='--', alpha=0.7); plt.tight_layout()
                 st.pyplot(fig_chart)
-                
+
                 chart_buf = io.BytesIO(); fig_chart.savefig(chart_buf, format="png", dpi=300, bbox_inches='tight')
-                st.download_button("Download Chart as PNG", data=chart_buf, file_name="cobra_chart.png", mime="image/png", use_container_width=True)
+                st.download_button("下載圖表 (PNG)", data=chart_buf, file_name="cobra_chart.png", mime="image/png", use_container_width=True)
 
 def render_structured_conclusions(conclusion_data):
-    st.subheader("Executive Summary")
+    st.subheader("總結")
     failed_ics = [item['component'] for item in conclusion_data if item['result'] == 'FAIL']
     if failed_ics:
-        st.markdown(f"**Result: <span style='color:red;'>FAIL</span>** - The following components exceeded thermal limits: **{', '.join(failed_ics)}**", unsafe_allow_html=True)
+        st.markdown(f"**結果: <span style='color:red;'>FAIL</span>** - 以下元件超出溫度規格: **{', '.join(failed_ics)}**", unsafe_allow_html=True)
     else:
-        st.markdown(f"**Result: <span style='color:lightgreen;'>PASS</span>** - All selected Key ICs are within their specified thermal limits.", unsafe_allow_html=True)
-    
+        st.markdown(f"**結果: <span style='color:lightgreen;'>PASS</span>** - 所有選擇的關鍵IC均在規格範圍內。", unsafe_allow_html=True)
+
     st.divider()
-    st.subheader("Detailed Component Analysis")
+    st.subheader("詳細元件分析")
 
     for item in conclusion_data:
         result_text = item['result']
-        # FIX: Use emojis for a clean, visual status in the expander title, as st.expander does not render HTML.
         status_emoji = "🔴" if result_text == "FAIL" else "🟢" if result_text == "PASS" else "⚪️"
-        expander_title = f"**{item['component']}** — Result: {status_emoji} {result_text}"
+        expander_title = f"**{item['component']}** — 結果: {status_emoji} {result_text}"
 
         with st.expander(expander_title, expanded=True):
             spec_val = f"{item['spec']:.2f}°C" if pd.notna(item['spec']) else "N/A"
-            st.markdown(f"**Specification Type:** `{item['spec_type']}`")
-            st.markdown(f"**Calculated Spec Limit:** `{spec_val}`")
+            st.markdown(f"**規格類型:** `{item['spec_type']}`")
+            st.markdown(f"**計算規格上限:** `{spec_val}`")
             if item.get('spec_inputs') != 'N/A':
-                st.markdown(f"**Specification Inputs:** `{item['spec_inputs']}`")
-            
-            st.write("**Performance per Configuration:**")
-            
+                st.markdown(f"**規格輸入:** `{item['spec_inputs']}`")
+
+            st.write("**各設定下的表現:**")
+
             if item['series_results']:
                 series_results_df = pd.DataFrame(item['series_results'])
-                
-                # Style the results table for better readability.
-                html_table = "<table><tr><th style='text-align:left; padding-right: 1em;'>Configuration</th><th style='text-align:left; padding-right: 1em;'>Temp (°C)</th><th style='text-align:left;'>Result</th></tr>"
+
+                html_table = "<table><tr><th style='text-align:left; padding-right: 1em;'>設定</th><th style='text-align:left; padding-right: 1em;'>溫度 (°C)</th><th style='text-align:left;'>結果</th></tr>"
                 for _, row in series_results_df.iterrows():
                     res_text_inner = row['result']
                     res_color_inner = FAIL_COLOR_HEX if res_text_inner == "FAIL" else PASS_COLOR_HEX if res_text_inner == "PASS" else "inherit"
@@ -556,18 +561,18 @@ def render_structured_conclusions(conclusion_data):
                 html_table += "</table>"
                 st.markdown(html_table, unsafe_allow_html=True)
             else:
-                st.caption("No temperature data to display (e.g., spec was not defined).")
+                st.caption("沒有可顯示的溫度數據 (例如：未定義規格)。")
 
 # --- ======================================================================= ---
 # ---                             MAIN APP ROUTER                             ---
 # --- ======================================================================= ---
 st.set_page_config(page_title="Sercomm Tool Suite", layout="wide")
-st.sidebar.title("Sercomm Thermal Engineering")
-app_selection = st.sidebar.radio("Select a Tool:", ("Cobra - Data transformation", "Viper - Risk analysis"))
+st.sidebar.title("Sercomm 熱傳工程")
+app_selection = st.sidebar.radio("選擇工具:", ("Cobra - 數據轉換與分析", "Viper - 風險分析"))
 st.sidebar.markdown("---")
-st.sidebar.info("A unified platform for Sercomm's engineering analysis tools.")
+st.sidebar.info("一個為 Sercomm 工程分析設計的統一平台。")
 
-if app_selection == "Viper - Risk analysis":
+if app_selection == "Viper - 風險分析":
     render_viper_ui()
-elif app_selection == "Cobra - Data transformation":
+elif app_selection == "Cobra - 數據轉換與分析":
     render_cobra_ui()
