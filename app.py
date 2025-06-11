@@ -1,11 +1,11 @@
-# Sercomm Tool Suite v19.5
+# Sercomm Tool Suite v19.7
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes:
+# - v19.7: Reverted all UI elements to English per user request.
+# - v19.6: Improved chart readability by moving the legend outside the plot area and dynamically adjusting the y-axis.
 # - v19.5: CRITICAL FIX: Resolved an AttributeError in the chart generation by using the correct arguments for the text labeling function.
 # - v19.4: CRITICAL FIX: Corrected the 'Remove File' button logic to avoid a StreamlitAPIException.
-# - v19.3: Added a 'Remove File' button to the Cobra UI to clear all loaded data and reset the state.
-# - v19.2: Added data labels to the top of each bar in the Cobra results chart and 'Surface Area' output to Viper.
 
 import streamlit as st
 import pandas as pd
@@ -606,25 +606,31 @@ def render_cobra_ui():
                 chart_data_numeric = results.get("chart_data")
 
                 if chart_data_numeric is not None and not chart_data_numeric.empty:
-                    fig_chart, ax = plt.subplots(figsize=(max(10, len(chart_data_numeric.index) * 0.8), 6))
                     df_chart_data_to_plot = chart_data_numeric[[s for s in selected_series if s in chart_data_numeric.columns]].copy()
                     
-                    df_chart_data_to_plot.plot(kind='bar', ax=ax, width=0.8)
+                    fig_chart, ax = plt.subplots(figsize=(max(10, len(chart_data_numeric.index) * 0.8), 6))
+                    df_chart_data_to_plot.plot(kind='bar', ax=ax, width=0.8, legend=False)
                     ax.set_ylabel("Temperature (°C)")
                     ax.set_title("Key IC Temperature Comparison")
 
-                    # Add data labels to bars
+                    max_temp = df_chart_data_to_plot.max().max()
+                    ax.set_ylim(top=max_temp * 1.15) 
+
                     for patch in ax.patches:
                         height = patch.get_height()
                         if pd.notna(height):
-                            # FIX: Use y-coordinate adjustment instead of invalid arguments
-                            ax.text(patch.get_x() + patch.get_width() / 2., height + 0.5,
+                            ax.text(patch.get_x() + patch.get_width() / 2., height,
                                     f'{height:.2f}',
-                                    ha='center', va='bottom')
+                                    ha='center', va='bottom',
+                                    xytext=(0, 3), textcoords='offset points')
 
                     plt.xticks(rotation=45, ha='right')
                     plt.grid(axis='y', linestyle='--', alpha=0.7)
-                    plt.tight_layout()
+                    
+                    handles, labels = ax.get_legend_handles_labels()
+                    fig_chart.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.0), ncol=len(df_chart_data_to_plot.columns))
+
+                    plt.tight_layout(rect=[0, 0, 1, 0.95])
                     st.pyplot(fig_chart)
 
                     chart_buf = io.BytesIO()
