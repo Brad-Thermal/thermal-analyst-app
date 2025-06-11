@@ -497,7 +497,7 @@ def render_cobra_ui():
             btn_cols = st.columns(2)
             if btn_cols[0].button("Select All", key="select_all_series", use_container_width=True):
                 st.session_state.series_selection = cobra_data["series_names"]
-            if btn_cols[1].button("Deselect All", key="deselect_all_series", use_container_width=True):
+            if btn_cols[1].button("Clear All", key="deselect_all_series", use_container_width=True):
                 st.session_state.series_selection = []
             
             selected_series = st.multiselect(
@@ -512,7 +512,7 @@ def render_cobra_ui():
             btn_cols = st.columns(2)
             if btn_cols[0].button("Select All", key="select_all_ics", use_container_width=True):
                 st.session_state.ic_selection = cobra_data["component_names"]
-            if btn_cols[1].button("Deselect All", key="deselect_all_ics", use_container_width=True):
+            if btn_cols[1].button("Clear All", key="deselect_all_ics", use_container_width=True):
                 st.session_state.ic_selection = []
 
             selected_ics = st.multiselect(
