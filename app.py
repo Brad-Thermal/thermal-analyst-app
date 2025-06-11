@@ -1,11 +1,11 @@
-# Sercomm Tool Suite v18.2
+# Sercomm Tool Suite v18.3
 # Author: Gemini
 # Description: A unified platform with professional reporting features.
 # Version Notes:
+# - v18.3: Increased the row height in the generated table image for better readability.
 # - v18.2: Reordered the results table to place 'Spec (°C)' next to 'Component' for easier comparison.
 # - v18.2: Reverted UI to Traditional Chinese per user request.
 # - v18.1: CRITICAL FIX: Resolved an analysis error by correctly managing the uploaded file's state.
-# - v18.0: Added 'Select All'/'Deselect All' buttons for a better bulk selection experience.
 
 import streamlit as st
 import pandas as pd
@@ -209,7 +209,6 @@ def run_cobra_analysis(file_buffer, cobra_data, selected_series, selected_ics, s
                 results[ic] = ic_result
                 conclusion_data.append({"component": ic, **ic_result})
         
-        # Add all columns first
         df_table_display.columns = [f"{col} (°C)" for col in df_table_display.columns]
         if results:
             df_table_display['Spec (°C)'] = [f"{results.get(ic, {}).get('spec_type', '')} = {results.get(ic, {}).get('spec', 'N/A'):.2f}" if pd.notna(results.get(ic, {}).get('spec')) else "N/A" for ic in df_table_display.index]
@@ -224,7 +223,6 @@ def run_cobra_analysis(file_buffer, cobra_data, selected_series, selected_ics, s
                     delta_col_name = f"{DELTA_SYMBOL}T ({baseline} - {compare}) (°C)"
                     df_table_display[delta_col_name] = (temp_b - temp_c)
 
-        # FIX: Reorder columns to place 'Spec (°C)' next to the component index
         spec_col = 'Spec (°C)'
         result_col = 'Result'
         if spec_col in df_table_display.columns:
@@ -260,8 +258,9 @@ def generate_formatted_table_image(df_table):
 
     num_rows = len(df_plot)
     header_max_lines = max(label.count('\n') + 1 for label in wrapped_column_labels)
-    fig_height = (num_rows * 0.4) + (header_max_lines * 0.4) + 0.5
-    fig_width = 1.8 * len(column_labels)
+    # Changed 0.4 to 0.8 to increase row height
+    fig_height = (num_rows * 1.2) + (header_max_lines * 1.2) + 0.5
+    fig_width = 2.0 * len(column_labels)
     fig, ax = plt.subplots(figsize=(fig_width, fig_height))
     ax.axis('off'); ax.axis('tight')
 
@@ -305,7 +304,6 @@ def create_formatted_excel(df_table):
         for col_num, value in enumerate(df_to_export.columns.values):
             worksheet.write(0, col_num, value, header_format)
 
-        # Apply formatting row by row to handle different data types
         for row_num, row_data in df_to_export.iterrows():
             for col_num, cell_value in enumerate(row_data):
                 if df_to_export.columns[col_num] == 'Result':
@@ -446,7 +444,6 @@ def render_cobra_ui():
         st.subheader("上傳 Excel 檔案")
         uploaded_file = st.file_uploader("拖曳檔案至此", type=["xlsx", "xls"], key="cobra_file_uploader", label_visibility="collapsed")
 
-    # --- Initialize session state ---
     if 'cobra_prestudy_data' not in st.session_state: st.session_state.cobra_prestudy_data = {}
     if 'cobra_analysis_results' not in st.session_state: st.session_state.cobra_analysis_results = None
     if 'delta_t_pairs' not in st.session_state: st.session_state.delta_t_pairs = []
