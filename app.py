@@ -272,7 +272,7 @@ def generate_formatted_table_image(df_table):
 
     table = ax.table(cellText=df_plot.values, colLabels=wrapped_column_labels, loc='center', cellLoc='center')
     table.auto_set_font_size(False)
-    table.set_fontsize(10)
+    table.set_fontsize(12)
 
     # Manually set cell heights for better control
     cells = table.get_celld()
@@ -296,7 +296,7 @@ def generate_formatted_table_image(df_table):
     # Adjust figure height after table is drawn
     fig.canvas.draw()
     bbox = table.get_window_extent(ax.figure.canvas.get_renderer())
-    fig.set_size_inches(fig_width, bbox.height/fig.dpi + 0.5)
+    fig.set_size_inches(fig_width, bbox.height/fig.dpi + 0.75)
 
     fig.tight_layout()
     return fig
